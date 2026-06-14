@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firestore Inspection Tool</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #f5f5f5; }
+    .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+    h1 { color: #333; }
+    .section { margin: 20px 0; padding: 15px; background: #f9f9f9; border-left: 4px solid #4F46E5; }
+    .error { background: #fee; border-left-color: #f00; color: #a00; }
+    .success { background: #efe; border-left-color: #0a0; color: #0a0; }
+    .product { margin: 10px 0; padding: 10px; background: white; border: 1px solid #ddd; border-radius: 4px; }
+    .product.mismatch { background: #fee; border-left: 4px solid #f00; }
+    .product.correct { background: #efe; border-left: 4px solid #0a0; }
+    code { background: #eee; padding: 2px 6px; border-radius: 3px; }
+    button { padding: 10px 20px; background: #4F46E5; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 10px 0; }
+    button:hover { background: #4338ca; }
+    .loading { color: #666; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Firestore Category Inspection Tool</h1>
+    
+    <div class="section">
+      <button onclick="inspectFirestore()">🔎 Inspect Firestore Data</button>
+      <button onclick="location.reload()">🔄 Refresh</button>
+    </div>
+
+    <div id="content"></div>
+  </div>
+
+  <script>
+    // Firebase config (matches admin_panel/.env.local or admin_panel/.env)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBQl6PYWhsC4T2GXGf42GDW31PPnBF2Axc",
+      authDomain: "print-5cc56.firebaseapp.com",
+      projectId: "print-5cc56",
+      storageBucket: "print-5cc56.firebasestorage.app",
+      messagingSenderId: "104631489444",
+      appId: "1:104631489444:web:abcdef123456"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    async function inspectFirestore() {
+      const content = document.getElementById('content');
+      content.innerHTML = '<div class="section loading">⏳ Loading data from Firestore...</div>';
+
+      try {
+        // Fetch categories
+        const categoriesSnap = await db.collection('categories').get();
+        const categories = {};
+        categoriesSnap.forEach(doc => {
+          categories[doc.id] = doc.data();
+        });
+
+        // Fetch products
+        const productsSnap = await db.collection('products').get();
+        const products = [];
+        productsSnap.forEach(doc => {
+          products.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Analyze
+        let html = `
+          <div class="section success">
+            <h3>✅ Connected to Firestore</h3>
+            <p>Project: <code>print-5cc56</code></p>
+            <p>Categories found: <strong>${Object.keys(categories).length}</strong></p>
+            <p>Products found: <strong>${products.length}</strong></p>
+          </div>
+        `;
+
+        // Show categories
+        html += '<div class="section"><h3>📂 Categories</h3>';
+        Object.entries(categories).slice(0, 5).forEach(([id, cat]) => {
+          html += `
+            <div class="product">
+              <strong>${cat.name}</strong><br>
+              ID: <code>${id}</code><br>
+              productCount: <strong>${cat.productCount || 0}</strong>
+            </div>
+          `;
+        });
+        if (Object.keys(categories).length > 5) {
+          html += `<p><em>... and ${Object.keys(categories).length - 5} more categories</em></p>`;
+        }
+        html += '</div>';
+
+        // Show products with category analysis
+        html += '<div class="section"><h3>🛍️ Products (showing first 10)</h3>';
+        let correctCount = 0;
+        let mismatchCount = 0;
+
+        products.slice(0, 10).forEach(product => {
+          const matchingCategory = categories[product.category];
+          const isCorrect = !!matchingCategory;
+
+          if (isCorrect) correctCount++;
+          else mismatchCount++;
+
+          html += `
+            <div class="product ${isCorrect ? 'correct' : 'mismatch'}">
+              <strong>${product.name}</strong><br>
+              ID: <code>${product.id}</code><br>
+              category field: <code>"${product.category}"</code><br>
+              ${isCorrect ? 
+                `✅ Matches category: <strong>${matchingCategory.name}</strong>` :
+                `❌ NO MATCHING CATEGORY. Available: ${Object.keys(categories).slice(0, 3).join(', ')}...`
+              }
+            </div>
+          `;
+        });
+
+        if (products.length > 10) {
+          html += `<p><em>... and ${products.length - 10} more products</em></p>`;
+        }
+
+        // Summary
+        html += `
+          <div class="section">
+            <h3>📊 Summary</h3>
+            <p>Correct products: <strong style="color: #0a0">${correctCount}</strong></p>
+            <p>Mismatched products: <strong style="color: #a00">${mismatchCount}</strong></p>
+            ${mismatchCount > 0 ? `
+              <p style="color: #a00; font-weight: bold;">
+                ⚠️ ${mismatchCount} products have category names instead of IDs!<br>
+                Run migration script: <code>node migrate_product_categories.js</code>
+              </p>
+            ` : `
+              <p style="color: #0a0; font-weight: bold;">
+                ✅ All products have correct category IDs!
+              </p>
+            `}
+          </div>
+        `;
+
+        content.innerHTML = html;
+      } catch (error) {
+        content.innerHTML = `
+          <div class="section error">
+            <h3>❌ Error</h3>
+            <p>${error.message}</p>
+            <p>Make sure:</p>
+            <ul>
+              <li>You're viewing this in the same browser as PrintX admin panel</li>
+              <li>Firebase is properly configured</li>
+              <li>Firestore rules allow reading</li>
+            </ul>
+          </div>
+        `;
+      }
+    }
+
+    // Auto-inspect on load
+    inspectFirestore();
+  </script>
+</body>
+</html>

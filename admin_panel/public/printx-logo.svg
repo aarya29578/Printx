@@ -1,0 +1,6 @@
+<svg width="220" height="48" viewBox="0 0 220 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="48" height="48" rx="12" fill="#4F46E5"/>
+  <path d="M14 32V16H24.5C29.1944 16 33 19.8056 33 24.5C33 29.1944 29.1944 33 24.5 33H14V32ZM19 28H24C26.2091 28 28 26.2091 28 24C28 21.7909 26.2091 20 24 20H19V28Z" fill="white"/>
+  <path d="M40 35L32 24L40 13" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="60" y="31" font-family="Poppins, sans-serif" font-size="24" font-weight="700" fill="#111827">PrintX</text>
+</svg>

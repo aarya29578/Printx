@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "104631489444",
+    "project_id": "print-5cc56",
+    "storage_bucket": "print-5cc56.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:104631489444:android:5abede3f55811d1d40a731",
+        "android_client_info": {
+          "package_name": "com.printx.printx"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQl6PYWhsC4T2GXGf42GDW31PPnBF2Axc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
