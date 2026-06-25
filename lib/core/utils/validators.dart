@@ -19,9 +19,10 @@ class Validators {
       return 'Phone number is required';
     }
     final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length != 10) {
-      return 'Enter a valid 10-digit phone number';
+    if (digits.length < 10) {
+      return 'Enter a valid phone number (minimum 10 digits)';
     }
+
     return null;
   }
 
@@ -29,9 +30,10 @@ class Validators {
     if (value == null || value.isEmpty) {
       return 'Password is required';
     }
-    if (value.length < 8) {
-      return 'Password must be at least 8 characters';
+    if (value.length < 6) {
+      return 'Password must be at least 6 characters';
     }
+
     return null;
   }
 
@@ -39,9 +41,10 @@ class Validators {
     if (value == null || value.trim().isEmpty) {
       return 'Full name is required';
     }
-    if (value.trim().length < 2) {
-      return 'Name must be at least 2 characters';
+    if (value.trim().length < 3) {
+      return 'Name must be at least 3 characters';
     }
+
     return null;
   }
 

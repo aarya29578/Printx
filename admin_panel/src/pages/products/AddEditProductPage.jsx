@@ -19,7 +19,7 @@ export default function AddEditProductPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { products, addProduct, updateProduct, deleteProduct } = useProductsStore()
+  const { products, addProduct, updateProduct, deleteProduct, loadProducts } = useProductsStore()
   const { categories, refreshCategory } = useCategoriesStore()
   const [tags, setTags] = useState([])
   const [featured, setFeatured] = useState(false)
@@ -37,6 +37,7 @@ export default function AddEditProductPage() {
     handleSubmit,
     control,
     setValue,
+    getValues,
     formState: { isSubmitting },
   } = useForm({
     defaultValues: {
@@ -46,8 +47,8 @@ export default function AddEditProductPage() {
       basePrice: selected?.basePrice || 0,
       status: selected?.status || 'active',
       minQty: selected?.minQty || 1,
-      sizesText: selected?.sizes?.join(', ') || '',
-      finishesText: selected?.finishes?.join(', ') || '',
+      sizes: selected?.sizes || [],
+      finishes: selected?.finishes || [],
     },
   })
 
@@ -66,8 +67,8 @@ export default function AddEditProductPage() {
     setValue('basePrice', selected.basePrice ?? '')
     setValue('status', selected.status || 'active')
     setValue('minQty', selected.minQty ?? '')
-    setValue('sizesText', selected.sizes?.join(', ') || '')
-    setValue('finishesText', selected.finishes?.join(', ') || '')
+    setValue('sizes', selected.sizes || [])
+    setValue('finishes', selected.finishes || [])
     setTags(selected.tags || [])
     setFeatured(Boolean(selected.isBestseller))
     setNewArrival(Boolean(selected.isNew))
@@ -94,12 +95,23 @@ export default function AddEditProductPage() {
   console.log("CATEGORY:", values?.category);
   console.log("BASE PRICE:", values?.basePrice);
   console.log("================================");
-    const sizes = values.sizesText
-      ? values.sizesText.split(',').map((item) => item.trim()).filter(Boolean)
-      : []
-    const finishes = values.finishesText
-      ? values.finishesText.split(',').map((item) => item.trim()).filter(Boolean)
-      : []
+    // Normalize + de-duplicate (case-insensitive) while preserving original casing from input.
+    const normalizeUnique = (arr) => {
+      const seen = new Set()
+      const out = []
+      ;(arr || []).forEach((raw) => {
+        const clean = String(raw ?? '').trim()
+        if (!clean) return
+        const key = clean.toLowerCase()
+        if (seen.has(key)) return
+        seen.add(key)
+        out.push(clean)
+      })
+      return out
+    }
+
+    const sizes = normalizeUnique(values.sizes)
+    const finishes = normalizeUnique(values.finishes)
     const minQty = values.minQty ?? ''
     
     // Category value is sent directly from dropdown as category ID (Firestore document ID)
@@ -108,6 +120,7 @@ export default function AddEditProductPage() {
     const payload = {
       ...values,
       category: categoryId,  // Save as category ID
+      // Ensure we ONLY write arrays (no comma-separated strings)
       sizes,
       finishes,
       quantities: minQty ? [minQty] : [],
@@ -137,6 +150,8 @@ export default function AddEditProductPage() {
         toast.success('Product created')
         // Refresh the category
         if (categoryId) await refreshCategory(categoryId)
+        // Reload products from Firestore to ensure fresh data
+        await loadProducts()
       }
       navigate('/products')
     } catch (error) {
@@ -187,14 +202,66 @@ export default function AddEditProductPage() {
                   <Input type="text" {...register('minQty')} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Size (comma separated)</label>
-                  <Input {...register('sizesText')} placeholder="A4, A5" />
+                  <label className="mb-1 block text-sm font-medium">Sizes</label>
+                  <Controller
+                    name="sizes"
+                    control={control}
+                    render={({ field }) => (
+                      <TagInput
+                        value={field.value || []}
+                        placeholder="Type and press Enter (e.g. A4)"
+                        onChange={(next) => {
+                          const normalizeUnique = (arr) => {
+                            const seen = new Set()
+                            const out = []
+                            ;(arr || []).forEach((raw) => {
+                              const clean = String(raw ?? '').trim()
+                              if (!clean) return
+                              const key = clean.toLowerCase()
+                              if (seen.has(key)) return
+                              seen.add(key)
+                              out.push(clean)
+                            })
+                            return out
+                          }
+
+                          field.onChange(normalizeUnique(next))
+                        }}
+                      />
+                    )}
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium">Finish (comma separated)</label>
-                <Input {...register('finishesText')} placeholder="Matte, Glossy" />
+                <label className="mb-1 block text-sm font-medium">Finishes</label>
+                <Controller
+                  name="finishes"
+                  control={control}
+                  render={({ field }) => (
+                    <TagInput
+                      value={field.value || []}
+                      placeholder="Type and press Enter (e.g. Matte)"
+                      onChange={(next) => {
+                        const normalizeUnique = (arr) => {
+                          const seen = new Set()
+                          const out = []
+                          ;(arr || []).forEach((raw) => {
+                            const clean = String(raw ?? '').trim()
+                            if (!clean) return
+                            const key = clean.toLowerCase()
+                            if (seen.has(key)) return
+                            seen.add(key)
+                            out.push(clean)
+                          })
+                          return out
+                        }
+
+                        field.onChange(normalizeUnique(next))
+                      }}
+                    />
+                  )}
+                />
               </div>
 
               <div>

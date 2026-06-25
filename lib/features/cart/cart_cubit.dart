@@ -1,6 +1,10 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter/material.dart';
+
+import '../../features/auth/auth_repository.dart';
+import '../../services/firestore_service.dart';
 import '../../data/models/app_models.dart';
 import '../../data/models/product_model.dart';
 import '../../data/mock_data/mock_banners.dart';
@@ -193,12 +197,18 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   CheckoutCubit() : super(CheckoutInitial());
 
   void start() {
+    // Initialize checkout in-progress state.
+    // (CheckoutScreen shows spinner only when state is CheckoutInitial.)
     emit(const CheckoutInProgress());
   }
 
   void nextStep() {
     final current = state;
     if (current is CheckoutInProgress) {
+      // Require address selection before moving to Delivery step.
+      if (current.step == 0 && current.selectedAddress == null) {
+        return;
+      }
       emit(current.copyWith(step: current.step + 1));
     }
   }
@@ -231,12 +241,55 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     }
   }
 
-  Future<void> placeOrder() async {
+  Future<void> placeOrder(BuildContext context) async {
     final current = state;
     if (current is! CheckoutInProgress) return;
-    await Future.delayed(const Duration(seconds: 1));
-    final orderNum = 'VPX-${20000 + DateTime.now().millisecond}';
-    emit(CheckoutSuccess(orderNum));
+
+    // Require address selection before placing order.
+    if (current.selectedAddress == null) {
+      emit(const CheckoutError('Please select a delivery address.'));
+      return;
+    }
+
+    // CheckoutCubit cannot access other cubits via `read()`.
+    // Use widget-provided context to access CartCubit state.
+    final cartState = BlocProvider.of<CartCubit>(context).state;
+    if (cartState is! CartLoaded) return;
+
+    final user = AuthRepository.currentUser;
+
+    if (user == null) {
+      emit(const CheckoutError('Not authenticated'));
+      return;
+    }
+
+    final items = <Map<String, dynamic>>[];
+    for (final ci in cartState.items) {
+      items.add({
+        'productId': ci.productId,
+        'productName': ci.productName,
+        'productImage': ci.productImage,
+        'quantity': ci.quantity,
+        'price': ci.basePrice,
+        'size': ci.size ?? '',
+        'finish': ci.finish ?? '',
+      });
+    }
+
+    final totalAmount = cartState.total;
+
+    final orderId = await FirestoreService.createOrder(
+      orderId: const Uuid().v4(),
+      userId: user.uid,
+      userName: user.displayName ?? user.email ?? '',
+      userEmail: user.email ?? '',
+      deliveryAddress: current.selectedAddress!.fullAddress,
+      items: items,
+      totalAmount: totalAmount,
+    );
+
+    BlocProvider.of<CartCubit>(context).clearCart();
+    emit(CheckoutSuccess(orderId));
   }
 }
 

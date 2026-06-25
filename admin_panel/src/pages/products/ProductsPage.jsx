@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Eye, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+
 import toast from 'react-hot-toast'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
@@ -18,14 +19,22 @@ const columnHelper = createColumnHelper()
 
 export default function ProductsPage() {
   const navigate = useNavigate()
-  const { products, deleteProduct, toggleStatus, deleteBulk, setStatusBulk } = useProductsStore()
+  const location = useLocation()
+  const { products, deleteProduct, toggleStatus, deleteBulk, setStatusBulk, clearAllProducts } = useProductsStore()
   const { categories: categoryItems, refreshCategory } = useCategoriesStore()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const [status, setStatus] = useState('all')
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const categoryParam = params.get('category')
+    if (categoryParam) setCategory(categoryParam)
+  }, [location.search])
   const [deletingId, setDeletingId] = useState(null)
   const [selectedRows, setSelectedRows] = useState([])
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [clearAllOpen, setClearAllOpen] = useState(false)
 
   const filtered = useMemo(() => products.filter((item) => {
     const name = (item.name ?? '').toString()
@@ -87,14 +96,61 @@ export default function ProductsPage() {
     }),
   ]
 
+  const renderedIds = filtered.map((p) => p.id)
+  console.log('[UI RENDER] state.products.length=', products.length)
+  console.log('[UI RENDER] renderedProductIds=', renderedIds)
+  console.log('[UI RENDER] renderedProductNames=', filtered.map((p) => p.name))
+  console.log('[UI RENDER] activeFilters=', { query, category, status })
+
+  // Targeted predicate evidence for PRD1782024592071
+  const targetId = 'PRD1782024592071'
+  const target = products.find((p) => p.id === targetId)
+  const targetInFiltered = filtered.some((p) => p.id === targetId)
+  if (target) {
+    const name = (target.name ?? '').toString()
+    const sku = (target.sku ?? '').toString()
+    const matchesQuery = name.toLowerCase().includes(query.toLowerCase()) || sku.toLowerCase().includes(query.toLowerCase())
+    const matchesCategory = category === 'all' || (target.category ?? '') === category
+    const matchesStatus = status === 'all' || (target.status ?? '') === status
+    console.log('[UI RENDER][TARGET] target=', {
+      id: target.id,
+      name: target.name,
+      sku: target.sku,
+      category: target.category,
+      status: target.status,
+      query,
+      categoryFilter: category,
+      statusFilter: status,
+      membershipInStateProducts: Boolean(target),
+      membershipInFiltered: targetInFiltered,
+      predicateResults: {
+        matchesQuery,
+        matchesCategory,
+        matchesStatus,
+      },
+      predicateReturnsFalse: {
+        matchesQuery: !matchesQuery,
+        matchesCategory: !matchesCategory,
+        matchesStatus: !matchesStatus,
+      },
+    })
+  } else {
+    console.log('[UI RENDER][TARGET] target missing from state.products', { id: targetId })
+  }
+
+
   return (
     <div>
       <PageHeader
         title="Products"
         subtitle={`${products.length} products`}
+
         actions={(
           <>
             <Button variant="secondary" onClick={() => toast.success('CSV exported from table action')}>Export CSV</Button>
+            {products.length > 0 && (
+              <Button variant="danger" onClick={() => setClearAllOpen(true)}>Clear All ({products.length})</Button>
+            )}
             <Button icon={Plus} onClick={() => navigate('/products/add')}>Add Product</Button>
           </>
         )}
@@ -168,6 +224,19 @@ export default function ProductsPage() {
         description="This permanently deletes all selected products. Type DELETE to continue."
         requireTyped
         typedValue="DELETE"
+      />
+
+      <ConfirmDialog
+        isOpen={clearAllOpen}
+        onClose={() => setClearAllOpen(false)}
+        onConfirm={async () => {
+          await clearAllProducts()
+          toast.success('All products cleared!')
+        }}
+        title="Clear ALL Products"
+        description={`This will PERMANENTLY delete ALL ${products.length} products from the database. Type CLEAR ALL to continue.`}
+        requireTyped
+        typedValue="CLEAR ALL"
       />
     </div>
   )

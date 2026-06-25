@@ -1,43 +1,48 @@
 import { create } from 'zustand'
-import { collection, doc, getDocs, updateDoc, writeBatch } from 'firebase/firestore'
-import { mockOrders } from '../data/mockData'
+import { collection, doc, getDocs, updateDoc } from 'firebase/firestore'
 import { db, isFirebaseConfigured, serverTimestamp } from '../services/firebase'
 
 const COLLECTION = 'orders'
 
 const readOrdersFromFirestore = async () => {
+  console.log('ORDERS FETCH START (readOrdersFromFirestore)')
+  console.log('ORDERS COLLECTION PATH', `collection(db, ${COLLECTION})`)
   const snapshot = await getDocs(collection(db, COLLECTION))
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+  const items = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+  console.log('ORDERS COUNT', items.length)
+  console.log('ORDER IDS', items.map((i) => i.id))
+  console.log('ORDER RAW DATA', items)
+  return items
 }
 
-const seedOrdersInFirestore = async () => {
-  const batch = writeBatch(db)
-  mockOrders.forEach((item) => {
-    batch.set(doc(db, COLLECTION, item.id), {
-      ...item,
-      updatedAt: serverTimestamp(),
-    })
-  })
-  await batch.commit()
-}
+
 
 export const useOrdersStore = create((set) => ({
-  orders: mockOrders,
+  orders: [],
+
   hasLoadedCloud: false,
   isLoadingCloud: false,
   cloudError: null,
   filters: { query: '', status: 'all', payment: 'all' },
   loadOrders: async () => {
-    if (!isFirebaseConfigured) return
+    console.log('ORDERS FETCH START')
+    if (!isFirebaseConfigured) {
+      console.log('ORDERS FETCH ABORT: firebase not configured')
+      return
+    }
+
+    console.log('ORDERS COLLECTION PATH', `collection(db, ${COLLECTION})`)
     set({ isLoadingCloud: true, cloudError: null })
+
     try {
       let items = await readOrdersFromFirestore()
-      if (!items.length) {
-        await seedOrdersInFirestore()
-        items = await readOrdersFromFirestore()
-      }
+      console.log('ORDERS COUNT', items.length)
+      console.log('ORDER IDS', items.map((i) => i.id))
+      console.log('ORDER RAW DATA', items)
+
       set({ orders: items, hasLoadedCloud: true, isLoadingCloud: false })
     } catch (error) {
+      console.log('ORDERS FETCH ERROR', error)
       set({ cloudError: error?.message || 'Failed to load orders', isLoadingCloud: false })
     }
   },

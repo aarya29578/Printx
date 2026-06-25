@@ -85,11 +85,22 @@ export default function DataTable({
     onSelectionChange(selected)
   }, [rowSelection, table, onSelectionChange])
 
-  const csvRows = useMemo(() => data.map((item) => JSON.parse(JSON.stringify(item))), [data])
+  const csvRows = useMemo(() => (Array.isArray(data) ? data : []).map((item) => JSON.parse(JSON.stringify(item))), [data])
+
+
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageSizeState = table.getState().pagination.pageSize
+  const rowModelRows = table.getRowModel().rows
+
+  // (debug) target check removed to avoid potential crashes from malformed row data
+
+
+
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
+
         {searchable ? (
           <Input value={globalFilter ?? ''} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Search..." className="w-72" />
         ) : <span />}
@@ -98,8 +109,10 @@ export default function DataTable({
         )}
       </div>
 
+
       <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700">
         <table className="min-w-[800px] w-full">
+
           <thead className="bg-gray-50 dark:bg-slate-800">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>

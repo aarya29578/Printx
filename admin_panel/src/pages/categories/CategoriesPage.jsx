@@ -49,26 +49,59 @@ const iconOptions = [
 
 const iconByName = Object.fromEntries(iconOptions.map((item) => [item.value, item.Icon]))
 
-function SortableCategory({ item, onEdit, onDelete, onAddProduct }) {
+function SortableCategory({ item, onEdit, onDelete, onAddProduct, onViewProducts }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
   const Icon = iconByName[item.icon] || Tag
 
   return (
     <div ref={setNodeRef} style={style} className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="relative grid h-20 place-items-center rounded-t-xl text-white" style={{ background: item.color }}>
-        <button type="button" {...attributes} {...listeners} className="absolute left-2 top-2 rounded bg-white/20 p-1 text-white" title="Drag"><GripVertical className="h-4 w-4" /></button>
+      <button
+        type="button"
+        className="relative grid h-20 place-items-center rounded-t-xl text-white w-full text-left"
+        style={{ background: item.color }}
+        onClick={() => onViewProducts(item.id)}
+      >
+        <span
+          className="absolute left-2 top-2 rounded bg-white/20 p-1 text-white"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </span>
         <Icon className="h-7 w-7" />
-      </div>
+      </button>
+
       <div className="p-4">
         <p className="font-medium dark:text-white">{item.name}</p>
         <p className="text-sm text-gray-500">{item.productCount} products</p>
         <div className="mt-3 flex items-center justify-between">
           <StatusBadge status={item.status} />
           <div className="flex gap-2">
-            <button type="button" title="Add product" className="rounded p-1 text-primary-600 hover:bg-primary-50" onClick={() => onAddProduct(item)}><Plus className="h-4 w-4" /></button>
-            <button type="button" title="Edit" className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => onEdit(item)}><Edit className="h-4 w-4" /></button>
-            <button type="button" title="Delete" className="rounded p-1 text-red-600 hover:bg-red-50" onClick={() => onDelete(item.id)}><Trash2 className="h-4 w-4" /></button>
+            <button
+              type="button"
+              title="Add product"
+              className="rounded p-1 text-primary-600 hover:bg-primary-50"
+              onClick={() => onAddProduct(item)}
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              title="Edit"
+              className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => onEdit(item)}
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              title="Delete"
+              className="rounded p-1 text-red-600 hover:bg-red-50"
+              onClick={() => onDelete(item.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -151,12 +184,13 @@ export default function CategoriesPage() {
         <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {items.map((item) => (
-              <SortableCategory
+<SortableCategory
                 key={item.id}
                 item={item}
                 onEdit={openEdit}
                 onDelete={setDeleteId}
                 onAddProduct={(category) => navigate(`/products/add?category=${encodeURIComponent(category.id)}`)}
+                onViewProducts={(categoryId) => navigate(`/products?category=${encodeURIComponent(categoryId)}`)}
               />
             ))}
           </div>

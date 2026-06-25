@@ -1,13 +1,21 @@
+import 'dart:io';
+
 import 'package:animate_do/animate_do.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../auth_cubit.dart';
+import '../../../services/upload_service.dart';
+import '../../auth/auth_cubit.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -21,38 +29,116 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmPasswordCtrl = TextEditingController();
+
   PasswordStrength _strength = PasswordStrength.none;
+
+  final _picker = ImagePicker();
+  File? _pickedImage;
+  bool _uploading = false;
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
+    _addressCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmPasswordCtrl.dispose();
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _pickFrom(ImageSource source) async {
+    final xfile = await _picker.pickImage(source: source, imageQuality: 85);
+    if (xfile == null) return;
+    setState(() => _pickedImage = File(xfile.path));
+  }
+
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    context.read<AuthCubit>().register(
-          _nameCtrl.text.trim(),
-          _emailCtrl.text.trim(),
-          _phoneCtrl.text.trim(),
-          _passwordCtrl.text,
+
+    setState(() => _uploading = true);
+    try {
+      // 1) Register auth + initial profile doc (with address)
+      context.read<AuthCubit>().register(
+            _nameCtrl.text.trim(),
+            _emailCtrl.text.trim(),
+            _phoneCtrl.text.trim(),
+            _passwordCtrl.text,
+            address: _addressCtrl.text.trim(),
+          );
+
+      // Wait until auth finishes (either authenticated or unauthenticated).
+      final authState = await context.read<AuthCubit>().stream.firstWhere(
+            (s) =>
+                s is AuthAuthenticated ||
+                s is AuthUnauthenticated ||
+                s is AuthError,
+          );
+
+      if (!mounted) return;
+
+      if (authState is AuthAuthenticated) {
+        final uid = authState.userId;
+
+        // 2) Upload profile image (optional) and update user doc
+        if (_pickedImage != null) {
+          final url = await UploadService.uploadProfileImage(
+            imageFile: _pickedImage!,
+          );
+          if (url == null) throw Exception('Profile image upload failed');
+
+          await FirebaseFirestore.instance.collection('users').doc(uid).update({
+            'profileImage': url,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account created successfully!')),
+          );
+          context.go('/home');
+        }
+        return;
+      }
+
+      if (authState is AuthError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(authState.message)),
         );
+        return;
+      }
+
+      // AuthUnauthenticated or any other state: treat as failure.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign up failed. Please try again.')),
+      );
+      return;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sign up failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
-        if (state is AuthOtpSent) {
-          context.go('/auth/otp?phone=${_phoneCtrl.text.trim()}');
-        } else if (state is AuthError) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(state.message)));
+        // We handle navigation after upload in _submit().
+        if (state is AuthError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.message)),
+          );
         }
       },
       child: GestureDetector(
@@ -90,7 +176,82 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: AppSpacing.xxl),
                     FadeInUp(
-                      delay: const Duration(milliseconds: 200),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Stack(
+                              alignment: Alignment.bottomRight,
+                              children: [
+                                CircleAvatar(
+                                  radius: 52,
+                                  backgroundColor: Colors.grey.shade200,
+                                  backgroundImage: _pickedImage != null
+                                      ? FileImage(_pickedImage!)
+                                      : null,
+                                  child: _pickedImage == null
+                                      ? const Icon(Icons.person, size: 40)
+                                      : null,
+                                ),
+                                Positioned(
+                                  right: 4,
+                                  bottom: 4,
+                                  child: InkWell(
+                                    onTap: () => _pickFrom(ImageSource.gallery),
+                                    borderRadius: BorderRadius.circular(999),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                          Icons.camera_alt_rounded,
+                                          size: 18,
+                                          color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Profile image',
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            // This section is inside a scrollable Column. Avoid letting
+                            // OutlinedButton receive infinite width constraints.
+                            Center(
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 10,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () =>
+                                        _pickFrom(ImageSource.gallery),
+                                    icon: const Icon(
+                                        Icons.photo_library_outlined),
+                                    label: const Text('Gallery'),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: () =>
+                                        _pickFrom(ImageSource.camera),
+                                    icon: const Icon(Icons.camera_alt_outlined),
+                                    label: const Text('Camera'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 150),
                       child: AppTextField(
                         controller: _nameCtrl,
                         label: 'Full Name',
@@ -101,7 +262,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     FadeInUp(
-                      delay: const Duration(milliseconds: 250),
+                      delay: const Duration(milliseconds: 200),
                       child: AppTextField(
                         controller: _emailCtrl,
                         label: 'Email',
@@ -113,19 +274,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     FadeInUp(
-                      delay: const Duration(milliseconds: 300),
+                      delay: const Duration(milliseconds: 250),
                       child: AppTextField(
                         controller: _phoneCtrl,
                         label: 'Phone Number',
                         hint: '9876543210',
                         prefixIcon: Icons.phone_outlined,
-                        prefix: const Padding(
-                          padding: EdgeInsets.only(left: 12, right: 8),
-                          child: Icon(Icons.phone_outlined,
-                              size: 20, color: AppColors.textMuted),
-                        ),
                         keyboardType: TextInputType.phone,
                         validator: Validators.phone,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 300),
+                      child: AppTextField(
+                        controller: _addressCtrl,
+                        label: 'Address',
+                        hint: 'House / Street / City',
+                        prefixIcon: Icons.location_on_outlined,
+                        validator: (v) =>
+                            Validators.required(v, field: 'Address'),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
@@ -134,7 +302,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       child: AppTextField(
                         controller: _passwordCtrl,
                         label: 'Password',
-                        hint: 'Min 8 characters',
+                        hint: 'Min 6 characters',
                         prefixIcon: Icons.lock_outline_rounded,
                         obscureText: true,
                         validator: Validators.password,
@@ -146,24 +314,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 380),
+                      child: AppTextField(
+                        controller: _confirmPasswordCtrl,
+                        label: 'Confirm Password',
+                        hint: 'Re-enter password',
+                        prefixIcon: Icons.lock_outline_rounded,
+                        obscureText: true,
+                        validator: (val) {
+                          if (val == null || val.isEmpty)
+                            return 'Confirm password is required';
+                          if (val != _passwordCtrl.text)
+                            return 'Passwords do not match';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
                     if (_strength != PasswordStrength.none)
                       FadeInUp(
                         child: _PasswordStrengthBar(strength: _strength),
                       ),
                     const SizedBox(height: AppSpacing.lg),
-                    BlocBuilder<AuthCubit, AuthState>(
-                      builder: (context, state) {
-                        return FadeInUp(
-                          delay: const Duration(milliseconds: 450),
-                          child: AppButton(
-                            label: 'Create Account',
-                            onPressed: _submit,
-                            variant: AppButtonVariant.primary,
-                            size: AppButtonSize.fullWidth,
-                            isLoading: state is AuthLoading,
-                          ),
-                        );
-                      },
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 450),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: AppButton(
+                          label: _uploading ? 'Creating...' : 'Create Account',
+                          onPressed: _uploading ? null : _submit,
+                          variant: AppButtonVariant.primary,
+                          size: AppButtonSize.fullWidth,
+                          isLoading: _uploading,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     FadeInUp(
@@ -223,7 +408,8 @@ class _PasswordStrengthBar extends StatelessWidget {
                 height: 4,
                 margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
                 decoration: BoxDecoration(
-                  color: i < fill ? color : AppColors.textMuted.withOpacity(0.2),
+                  color:
+                      i < fill ? color : AppColors.textMuted.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
