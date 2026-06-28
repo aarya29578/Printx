@@ -350,6 +350,34 @@ final _router = GoRouter(
       pageBuilder: (c, s) => _fadeSlide(c, s, const CheckoutScreen()),
     ),
     GoRoute(
+      path: '/order/:orderId/details',
+      pageBuilder: (c, s) {
+        final orderId = s.pathParameters['orderId'] ?? '';
+
+        return _fadeSlide(
+          c,
+          s,
+          FutureBuilder<Order>(
+            future: FirestoreService.fetchOrderById(orderId: orderId),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (!snap.hasData) {
+                return Scaffold(
+                  appBar: AppBar(title: const Text('Order Details')),
+                  body: const Center(child: Text('Order not found')),
+                );
+              }
+              return OrderDetailsScreen(order: snap.data!);
+            },
+          ),
+        );
+      },
+    ),
+    GoRoute(
       path: '/order/:orderId/track',
       pageBuilder: (c, s) {
         // Use the order document id (orderId) to load the real order.

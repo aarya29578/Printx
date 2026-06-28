@@ -274,6 +274,9 @@ class FirestoreService {
         totalPrice: ((map['price'] as num?)?.toInt() ?? 0) *
             ((map['quantity'] as num?)?.toInt() ?? 1),
         specs: _specsFromSizeFinish(size: map['size'], finish: map['finish']),
+        customDesignUrl: map['customDesignUrl'] as String?,
+        customDesignFileName: map['customDesignFileName'] as String?,
+        customerInstructions: (map['customerInstructions'] as String?) ?? '',
       );
     }).toList();
 

@@ -8,6 +8,12 @@ import 'package:flutter/foundation.dart';
 class UploadService {
   UploadService._();
 
+  static const String _customerDesignUploadUrl =
+      'https://jenishaonlineservice.com/printx/api/upload-design.php';
+
+  static const String _customerDesignPublicBaseUrl =
+      'https://jenishaonlineservice.com/printx/designs/';
+
   static String _fileNameFromPath(String path) {
     return path.split(Platform.pathSeparator).last;
   }
@@ -44,6 +50,99 @@ class UploadService {
   ///
   /// Expected response JSON:
   /// {"success": true, "url": "https://jenishaonlineservice.com/printx/profiles/<filename>"}
+  static Future<Map<String, String?>> uploadCustomerDesign({
+    required File file,
+    String? designFileNameOverride,
+  }) async {
+    final originalFileName = _fileNameFromPath(file.path);
+    final ext = _inferExtension(originalFileName);
+
+    if (ext == null) {
+      throw Exception('Unsupported file extension for design upload');
+    }
+
+    final safeExt = _safeExtensionOrJpg(ext);
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      throw Exception('Cannot upload customer design: uid is null.');
+    }
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+    final finalName = (designFileNameOverride?.trim().isNotEmpty ?? false)
+        ? designFileNameOverride!.trim()
+        : 'design_${uid}_$timestamp.$safeExt';
+
+    final uri = Uri.parse(_customerDesignUploadUrl);
+    final request = await HttpClient().postUrl(uri);
+
+    final boundary =
+        '----PrintXBoundary${DateTime.now().microsecondsSinceEpoch}';
+
+    request.headers
+        .set('Content-Type', 'multipart/form-data; boundary=$boundary');
+
+    void writeStringField(String name, String value) {
+      request.write('--$boundary\r\n');
+      request.write('Content-Disposition: form-data; name="$name"\r\n\r\n');
+      request.write('$value\r\n');
+    }
+
+    void writeFileField(String name, File file, String fileName) {
+      final bytes = file.readAsBytesSync();
+      request.write('--$boundary\r\n');
+      request.write(
+          'Content-Disposition: form-data; name="$name"; filename="$fileName"\r\n');
+      // PHP side will validate ext; we keep the content type generic by extension.
+      request.write('Content-Type: application/octet-stream\r\n\r\n');
+      request.add(bytes);
+      request.write('\r\n');
+    }
+
+    writeStringField('filename', finalName);
+    writeFileField('design', file, finalName);
+
+    request.write('--$boundary--\r\n');
+
+    final response = await request.close();
+
+    final responseBodyBytes = await response.fold<List<int>>(
+      <int>[],
+      (prev, element) => prev..addAll(element),
+    );
+
+    final bodyString = String.fromCharCodes(responseBodyBytes);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        'Customer design upload failed (HTTP ${response.statusCode}): $bodyString',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(bodyString);
+    } catch (_) {
+      decoded = null;
+    }
+
+    // Expected: {"url":"...","filename":"..."}
+    if (decoded is Map) {
+      final url = decoded['url'];
+      final filename = decoded['filename'];
+      return {
+        'url': url is String ? url : null,
+        'filename': filename is String ? filename : null,
+      };
+    }
+
+    return {
+      'url': bodyString,
+      'filename': finalName,
+    };
+  }
+
   static Future<String?> uploadProfileImage({
     required File imageFile,
   }) async {

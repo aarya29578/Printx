@@ -47,6 +47,10 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   hive_flutter: ^1.1.0
 
+  # File picker
+  file_picker: ^8.0.0
+
+
   # Network (mock-ready)
   dio: ^5.4.0
 

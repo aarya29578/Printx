@@ -84,9 +84,17 @@ class _OrderList extends StatelessWidget {
   final List<Order> orders;
   const _OrderList({required this.orders});
 
+  List<Order> _sortedNewestFirst(List<Order> input) {
+    final sorted = [...input];
+    sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return sorted;
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (orders.isEmpty) {
+    final sortedOrders = _sortedNewestFirst(orders);
+
+    if (sortedOrders.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -103,13 +111,14 @@ class _OrderList extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.all(AppSpacing.md),
-      itemCount: orders.length,
+      itemCount: sortedOrders.length,
       itemBuilder: (context, index) {
         return FadeInUp(
           delay: Duration(milliseconds: index * 80),
           child: GestureDetector(
-            onTap: () => context.push('/order/${orders[index].id}/details'),
-            child: _OrderCard(order: orders[index]),
+            onTap: () =>
+                context.push('/order/${sortedOrders[index].id}/details'),
+            child: _OrderCard(order: sortedOrders[index]),
           ),
         );
       },

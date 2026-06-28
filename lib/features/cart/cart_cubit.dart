@@ -55,8 +55,15 @@ class CartLoaded extends CartState {
 class CartCubit extends Cubit<CartState> {
   CartCubit() : super(const CartLoaded(items: []));
 
-  void addProduct(Product product,
-      {int quantity = 100, String? finish, String? size}) {
+  void addProduct(
+    Product product, {
+    int quantity = 100,
+    String? finish,
+    String? size,
+    String? customDesignUrl,
+    String? customDesignFileName,
+    String customerInstructions = "",
+  }) {
     final current = state as CartLoaded;
     const uuid = Uuid();
 
@@ -75,6 +82,9 @@ class CartCubit extends Cubit<CartState> {
           finish ?? (product.finishes.isNotEmpty ? product.finishes[0] : null),
       size: size ?? (product.sizes.isNotEmpty ? product.sizes[0] : null),
       specs: specs,
+      customDesignUrl: customDesignUrl,
+      customDesignFileName: customDesignFileName,
+      customerInstructions: customerInstructions,
     );
     emit(CartLoaded(
       items: [...current.items, item],
@@ -273,6 +283,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         'price': ci.basePrice,
         'size': ci.size ?? '',
         'finish': ci.finish ?? '',
+        'customDesignUrl': ci.customDesignUrl,
+        'customDesignFileName': ci.customDesignFileName,
+        'customerInstructions': ci.customerInstructions ?? '',
       });
     }
 
