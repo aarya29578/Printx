@@ -75,8 +75,10 @@ const normalizeOrderDate = (value) => {
 
 const safeFormatOrderDate = (value) => {
   const d = normalizeOrderDate(value)
-  return d ? new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(d) : '—'
+  if (!d) return ''
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(d)
 }
+
 
 const columnHelper = createColumnHelper()
 
@@ -101,12 +103,13 @@ export default function OrdersPage() {
   const filtered = useMemo(() => orders.filter((item) => {
     const q = query.toLowerCase()
     const itemId = item?.id ?? ''
-    const customerName = item?.customer?.name ?? ''
+    const customerName = item?.userName ?? ''
     const matchesQuery = String(itemId).toLowerCase().includes(q) || String(customerName).toLowerCase().includes(q)
     const matchesPayment = payment === 'all' || item?.payment === payment
     const matchesStatus = statusTab === 'all' || item?.status === statusTab
     return matchesQuery && matchesPayment && matchesStatus
   }), [orders, query, payment, statusTab])
+
 
   const columns = [
     columnHelper.accessor('id', {
@@ -116,23 +119,50 @@ export default function OrdersPage() {
     columnHelper.display({
       id: 'customer',
       header: 'Customer',
-      cell: ({ row }) => (
-        <div>
-          <p className="font-medium">{row.original?.customer?.name ?? 'Unknown Customer'}</p>
-          <p className="text-xs text-gray-500">{row.original?.customer?.phone ?? ''}</p>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const customerName = row.original?.userName
+        const customerEmail = row.original?.userEmail
+        // Phone is not present in sample order docs; do not guess.
+        const customerPhone = row.original?.userPhone
+
+        return (
+          <div>
+            <p className="font-medium">{customerName}</p>
+            {customerPhone ? <p className="text-xs text-gray-500">{customerPhone}</p> : null}
+            {customerEmail ? <p className="text-xs text-gray-500">{customerEmail}</p> : null}
+          </div>
+        )
+      },
     }),
-    columnHelper.accessor((row) => row?.product?.name ?? 'Unknown Product', {
-      id: 'product',
-      header: 'Product',
-      cell: (info) => info.getValue(),
+    columnHelper.display({
+      id: 'products',
+      header: 'Product(s)',
+      cell: ({ row }) => {
+        const items = Array.isArray(row.original?.items) ? row.original.items : []
+        return (
+          <div className="space-y-1">
+            {items.map((it, idx) => (
+              <p key={`${row.original.id}-it-${idx}`} className="text-sm">{it.productName}</p>
+            ))}
+          </div>
+        )
+      },
     }),
-    columnHelper.accessor('qty', { header: 'Qty' }),
-    columnHelper.accessor('amount', {
+    columnHelper.display({
+      id: 'qty',
+      header: 'Qty',
+      cell: ({ row }) => {
+        const items = Array.isArray(row.original?.items) ? row.original.items : []
+        // Sum quantities across items
+        const totalQty = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+        return <span>{totalQty}</span>
+      },
+    }),
+    columnHelper.accessor('totalAmount', {
       header: 'Amount',
       cell: (info) => <span className="font-semibold">{formatINR(info.getValue())}</span>,
     }),
+
     columnHelper.accessor('payment', {
       header: 'Payment',
       cell: (info) => <span className="rounded-full bg-gray-100 px-2 py-1 text-xs">{info.getValue()}</span>,
@@ -190,19 +220,36 @@ export default function OrdersPage() {
       )} />
 
       <div className="grid gap-3 md:grid-cols-5">
-        {[
-          ['New Today', 24, 'bg-indigo-100 text-indigo-700'],
-          ['Printing', 89, 'bg-purple-100 text-purple-700'],
-          ['Shipped', 134, 'bg-blue-100 text-blue-700'],
-          ['Delivered', 892, 'bg-green-100 text-green-700'],
-          ['Cancelled', 12, 'bg-red-100 text-red-700'],
-        ].map((item) => (
-          <div key={item[0]} className="rounded-xl border border-gray-100 bg-white p-3">
-            <p className="text-xs text-gray-500">{item[0]}</p>
-            <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-sm font-semibold ${item[2]}`}>{item[1]}</p>
-          </div>
-        ))}
+        {(() => {
+          const ordersList = Array.isArray(orders) ? orders : []
+          const todayKey = new Date().toISOString().slice(0, 10)
+
+          const countByStatus = (s) => ordersList.filter((o) => o?.status === s).length
+          const countNewToday = () => ordersList.filter((o) => {
+            const createdAt = o?.createdAt
+            if (!createdAt) return false
+            // sample REST output returns ISO string
+            const iso = typeof createdAt === 'string' ? createdAt : null
+            return iso ? iso.slice(0, 10) === todayKey : false
+          }).length
+
+          const cards = [
+            ['New Today', countNewToday(), 'bg-indigo-100 text-indigo-700'],
+            ['Printing', countByStatus('printing'), 'bg-purple-100 text-purple-700'],
+            ['Shipped', countByStatus('shipped'), 'bg-blue-100 text-blue-700'],
+            ['Delivered', countByStatus('delivered'), 'bg-green-100 text-green-700'],
+            ['Cancelled', countByStatus('cancelled'), 'bg-red-100 text-red-700'],
+          ]
+
+          return cards.map((item) => (
+            <div key={item[0]} className="rounded-xl border border-gray-100 bg-white p-3">
+              <p className="text-xs text-gray-500">{item[0]}</p>
+              <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-sm font-semibold ${item[2]}`}>{item[1]}</p>
+            </div>
+          ))
+        })()}
       </div>
+
 
       <Tabs tabs={tabs} active={statusTab} onChange={setStatusTab} />
 

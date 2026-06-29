@@ -1,28 +1,17 @@
 import { create } from 'zustand'
-import { collection, doc, getDocs, updateDoc, writeBatch } from 'firebase/firestore'
-import { mockOrders } from '../data/mockData'
+import { collection, getDocs, updateDoc, doc } from 'firebase/firestore'
 import { db, isFirebaseConfigured, serverTimestamp } from '../services/firebase'
 
 const COLLECTION = 'orders'
+
 
 const readOrdersFromFirestore = async () => {
   const snapshot = await getDocs(collection(db, COLLECTION))
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
 }
 
-const seedOrdersInFirestore = async () => {
-  const batch = writeBatch(db)
-  mockOrders.forEach((item) => {
-    batch.set(doc(db, COLLECTION, item.id), {
-      ...item,
-      updatedAt: serverTimestamp(),
-    })
-  })
-  await batch.commit()
-}
-
 export const useOrdersStore = create((set) => ({
-  orders: mockOrders,
+  orders: [],
   hasLoadedCloud: false,
   isLoadingCloud: false,
   cloudError: null,
@@ -31,11 +20,7 @@ export const useOrdersStore = create((set) => ({
     if (!isFirebaseConfigured) return
     set({ isLoadingCloud: true, cloudError: null })
     try {
-      let items = await readOrdersFromFirestore()
-      if (!items.length) {
-        await seedOrdersInFirestore()
-        items = await readOrdersFromFirestore()
-      }
+      const items = await readOrdersFromFirestore()
       set({ orders: items, hasLoadedCloud: true, isLoadingCloud: false })
     } catch (error) {
       set({ cloudError: error?.message || 'Failed to load orders', isLoadingCloud: false })
