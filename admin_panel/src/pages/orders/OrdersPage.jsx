@@ -12,10 +12,74 @@ import Button from '../../components/ui/Button'
 import Tabs from '../../components/ui/Tabs'
 import { useOrdersStore } from '../../store/ordersStore'
 import { formatINR } from '../../core/utils/formatCurrency'
-import { formatDateTime } from '../../core/utils/formatDate'
 import { generateInvoicePDF } from '../../core/utils/generatePDF'
 
+// ---- Centralized Order Date Normalization / Formatting (Orders page only) ----
+// Supports: Firestore Timestamp (toDate), {seconds,nanoseconds}, Date, ISO string,
+// Unix ms, Unix seconds, null/undefined/empty/invalid string.
+const normalizeOrderDate = (value) => {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    // Treat numeric strings as potential Unix timestamps (ms or seconds)
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const num = Number(trimmed)
+      if (!Number.isFinite(num)) return null
+      // Heuristic: ms if > 1e12, else seconds
+      const millis = num > 1e12 ? num : num * 1000
+      const d = new Date(millis)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+
+    // ISO / RFC strings
+    const d = new Date(trimmed)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+
+  // Firestore Timestamp-like object (has toDate)
+  if (typeof value === 'object' && typeof value.toDate === 'function') {
+    try {
+      const d = value.toDate()
+      return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null
+    } catch {
+      return null
+    }
+  }
+
+  // { seconds, nanoseconds } format
+  if (typeof value === 'object' && value !== null && (('seconds' in value) || ('nanoseconds' in value))) {
+    const seconds = value.seconds
+    const nanoseconds = value.nanoseconds
+    const ms = Number(seconds) * 1000 + Math.floor(Number(nanoseconds || 0) / 1e6)
+    if (!Number.isFinite(ms)) return null
+    const d = new Date(ms)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+
+  // Unix milliseconds / seconds as numbers
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null
+    const millis = value > 1e12 ? value : value * 1000
+    const d = new Date(millis)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+
+  // JS Date
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+
+  return null
+}
+
+const safeFormatOrderDate = (value) => {
+  const d = normalizeOrderDate(value)
+  return d ? new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(d) : '—'
+}
+
 const columnHelper = createColumnHelper()
+
 
 export default function OrdersPage() {
   const navigate = useNavigate()
@@ -79,8 +143,23 @@ export default function OrdersPage() {
     }),
     columnHelper.accessor('date', {
       header: 'Date',
-      cell: (info) => <span className="text-sm">{formatDateTime(info.getValue())}</span>,
+      cell: ({ row, getValue }) => {
+        const value = getValue()
+        const order = row?.original
+        const normalized = normalizeOrderDate(value)
+        if (!normalized) {
+          console.warn("Invalid order date", {
+            orderId: order?.id ?? row?.id,
+            createdAt: order?.createdAt ?? row?.original?.createdAt,
+            updatedAt: order?.updatedAt ?? row?.original?.updatedAt,
+            raw: row?.original ?? value,
+          })
+        }
+
+        return <span className="text-sm">{safeFormatOrderDate(value)}</span>
+      },
     }),
+
     columnHelper.display({
       id: 'actions',
       header: 'Actions',
