@@ -36,9 +36,11 @@ export default function OrdersPage() {
 
   const filtered = useMemo(() => orders.filter((item) => {
     const q = query.toLowerCase()
-    const matchesQuery = item.id.toLowerCase().includes(q) || item.customer.name.toLowerCase().includes(q)
-    const matchesPayment = payment === 'all' || item.payment === payment
-    const matchesStatus = statusTab === 'all' || item.status === statusTab
+    const itemId = item?.id ?? ''
+    const customerName = item?.customer?.name ?? ''
+    const matchesQuery = String(itemId).toLowerCase().includes(q) || String(customerName).toLowerCase().includes(q)
+    const matchesPayment = payment === 'all' || item?.payment === payment
+    const matchesStatus = statusTab === 'all' || item?.status === statusTab
     return matchesQuery && matchesPayment && matchesStatus
   }), [orders, query, payment, statusTab])
 
@@ -52,12 +54,12 @@ export default function OrdersPage() {
       header: 'Customer',
       cell: ({ row }) => (
         <div>
-          <p className="font-medium">{row.original.customer.name}</p>
-          <p className="text-xs text-gray-500">{row.original.customer.phone}</p>
+          <p className="font-medium">{row.original?.customer?.name ?? 'Unknown Customer'}</p>
+          <p className="text-xs text-gray-500">{row.original?.customer?.phone ?? ''}</p>
         </div>
       ),
     }),
-    columnHelper.accessor((row) => row.product.name, {
+    columnHelper.accessor((row) => row?.product?.name ?? 'Unknown Product', {
       id: 'product',
       header: 'Product',
       cell: (info) => info.getValue(),
