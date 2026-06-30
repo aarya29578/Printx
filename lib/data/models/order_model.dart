@@ -20,6 +20,9 @@ class OrderItem extends Equatable {
   final int unitPrice;
   final int totalPrice;
   final String? specs;
+  final String? customDesignUrl;
+  final String? customDesignFileName;
+  final String customerInstructions;
 
   const OrderItem({
     required this.productId,
@@ -29,6 +32,9 @@ class OrderItem extends Equatable {
     required this.unitPrice,
     required this.totalPrice,
     this.specs,
+    this.customDesignUrl,
+    this.customDesignFileName,
+    this.customerInstructions = "",
   });
 
   @override

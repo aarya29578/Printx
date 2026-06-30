@@ -1,9 +1,10 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../core/theme/app_colors.dart';
-import '../../features/auth/auth_cubit.dart';
 import '../../services/storage_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -43,11 +44,14 @@ class _SplashScreenState extends State<SplashScreen>
   void _navigate() {
     if (!mounted) return;
     final isOnboarded = StorageService.isOnboardingDone;
-    final isLoggedIn = StorageService.isLoggedIn;
+
+    // Firebase is the source of truth for authentication.
+    final isLoggedIn = FirebaseAuth.instance.currentUser != null;
+
     if (!isOnboarded) {
       context.go('/onboarding');
     } else if (!isLoggedIn) {
-      context.go('/auth/register');
+      context.go('/auth/login');
     } else {
       context.go('/home');
     }

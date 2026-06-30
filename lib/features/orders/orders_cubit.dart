@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/models/order_model.dart';
 import '../../services/firestore_service.dart';
+import '../../features/auth/auth_repository.dart';
 
 abstract class OrdersState extends Equatable {
   const OrdersState();
@@ -45,6 +46,12 @@ class OrdersCubit extends Cubit<OrdersState> {
   Future<void> load() async {
     emit(OrdersLoading());
     await Future.delayed(const Duration(milliseconds: 200));
-    emit(OrdersLoaded(await FirestoreService.fetchOrders()));
+    final currentUser = AuthRepository.currentUser;
+    if (currentUser == null) {
+      emit(const OrdersError('Not authenticated'));
+      return;
+    }
+    emit(OrdersLoaded(
+        await FirestoreService.fetchOrdersForUser(userId: currentUser.uid)));
   }
 }

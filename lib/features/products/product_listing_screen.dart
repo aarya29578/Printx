@@ -120,7 +120,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
                     Icon(Icons.inbox_outlined,
                         size: 64, color: AppColors.textMuted),
                     const SizedBox(height: AppSpacing.md),
-                    Text('No products found',
+                    Text('No Products Found',
                         style: TextStyle(color: AppColors.textMuted)),
                   ],
                 ),

@@ -6,7 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/extensions.dart';
-import '../../core/widgets/app_button.dart';
+
 import '../../data/models/order_model.dart';
 import '../../features/orders/orders_cubit.dart';
 
@@ -84,9 +84,17 @@ class _OrderList extends StatelessWidget {
   final List<Order> orders;
   const _OrderList({required this.orders});
 
+  List<Order> _sortedNewestFirst(List<Order> input) {
+    final sorted = [...input];
+    sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return sorted;
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (orders.isEmpty) {
+    final sortedOrders = _sortedNewestFirst(orders);
+
+    if (sortedOrders.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -94,7 +102,7 @@ class _OrderList extends StatelessWidget {
             Icon(Icons.receipt_long_outlined,
                 size: 64, color: AppColors.textMuted),
             const SizedBox(height: AppSpacing.md),
-            Text('No orders here',
+            Text('No Orders Found',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 16)),
           ],
         ),
@@ -103,11 +111,15 @@ class _OrderList extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.all(AppSpacing.md),
-      itemCount: orders.length,
+      itemCount: sortedOrders.length,
       itemBuilder: (context, index) {
         return FadeInUp(
           delay: Duration(milliseconds: index * 80),
-          child: _OrderCard(order: orders[index]),
+          child: GestureDetector(
+            onTap: () =>
+                context.push('/order/${sortedOrders[index].id}/details'),
+            child: _OrderCard(order: sortedOrders[index]),
+          ),
         );
       },
     );
@@ -129,10 +141,11 @@ class _OrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('ORDER CARD orderId=${order.id} orderNumber=${order.orderNumber}');
+
     return Card(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
@@ -144,16 +157,16 @@ class _OrderCard extends StatelessWidget {
                 Text('#${order.id.toUpperCase()}',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: _statusColor().withOpacity(0.15),
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
                     order.status.name
-                        .replaceAllMapped(RegExp(r'[A-Z]'),
-                            (m) => ' ${m.group(0)}')
+                        .replaceAllMapped(
+                            RegExp(r'[A-Z]'), (m) => ' ${m.group(0)}')
                         .trim()
                         .capitalize,
                     style: TextStyle(
@@ -171,8 +184,7 @@ class _OrderCard extends StatelessWidget {
             ),
             Text(
               order.createdAt.formatted,
-              style:
-                  TextStyle(color: AppColors.textMuted, fontSize: 12),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
             const Divider(height: AppSpacing.md),
             Row(
@@ -183,8 +195,12 @@ class _OrderCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
                 TextButton(
-                  onPressed: () =>
-                      context.push('/order/${order.id}/track'),
+                  onPressed: () {
+                    final route = '/order/${order.id}/details';
+                    print(
+                        'TRACK ORDER BUTTON orderId=${order.id} route=$route');
+                    context.push(route);
+                  },
                   child: const Text('Track'),
                 ),
               ],

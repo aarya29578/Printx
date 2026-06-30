@@ -23,12 +23,21 @@ import 'features/cart/cart_screen.dart';
 import 'features/checkout/checkout_screen.dart';
 import 'features/orders/orders_screen.dart';
 import 'features/orders/order_tracking_screen.dart';
+import 'features/orders/order_details_screen.dart';
+
 import 'features/my_designs/my_designs_screen.dart';
+import 'data/models/order_model.dart';
+
 import 'features/profile/profile_screen.dart';
+import 'features/profile/edit_profile_screen.dart';
+import 'features/profile/edit_profile_screen.dart' as profile_edit;
+import 'features/profile/saved_addresses_screen.dart';
+import 'core/auth/auth_route_guard.dart';
 import 'features/search/search_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'data/mock_data/mock_categories.dart';
-import 'data/mock_data/mock_orders.dart';
+import 'data/models/order_model.dart';
+import 'services/firestore_service.dart';
 
 class MainShell extends StatefulWidget {
   final Widget child;
@@ -215,14 +224,17 @@ final _router = GoRouter(
     GoRoute(
       path: '/onboarding',
       pageBuilder: (c, s) => _fadeSlide(c, s, const OnboardingScreen()),
+      redirect: AuthRouteGuard.redirect,
     ),
     GoRoute(
       path: '/auth/register',
       pageBuilder: (c, s) => _fadeSlide(c, s, const RegisterScreen()),
+      redirect: AuthRouteGuard.redirect,
     ),
     GoRoute(
       path: '/auth/login',
       pageBuilder: (c, s) => _fadeSlide(c, s, const LoginScreen()),
+      redirect: AuthRouteGuard.redirect,
     ),
     GoRoute(
       path: '/auth/otp',
@@ -245,19 +257,45 @@ final _router = GoRouter(
         GoRoute(
           path: '/designs',
           pageBuilder: (c, s) => _fadeSlide(c, s, const MyDesignsScreen()),
+          redirect: AuthRouteGuard.redirect,
         ),
         GoRoute(
           path: '/orders',
           pageBuilder: (c, s) => _fadeSlide(c, s, const OrdersScreen()),
+          redirect: AuthRouteGuard.redirect,
         ),
         GoRoute(
           path: '/profile',
           pageBuilder: (c, s) => _fadeSlide(c, s, const ProfileScreen()),
         ),
+        GoRoute(
+          path: '/profile/edit-profile',
+          redirect: AuthRouteGuard.redirect,
+          pageBuilder: (c, s) => _fadeSlide(c, s, const EditProfileScreen()),
+        ),
+        GoRoute(
+          path: '/profile/saved-addresses',
+          redirect: AuthRouteGuard.redirect,
+          pageBuilder: (c, s) => _fadeSlide(
+            c,
+            s,
+            const SavedAddressesScreen(),
+          ),
+        ),
+        GoRoute(
+          path: '/profile/saved-addresses/add',
+          redirect: AuthRouteGuard.redirect,
+          pageBuilder: (c, s) => _fadeSlide(
+            c,
+            s,
+            const AddSavedAddressScreen(),
+          ),
+        ),
       ],
     ),
     GoRoute(
       path: '/products/:categoryId',
+      redirect: AuthRouteGuard.redirect,
       pageBuilder: (c, s) {
         final catId = s.pathParameters['categoryId'] ?? '';
         print('🔍 [ROUTE] Category clicked: categoryId=$catId');
@@ -282,6 +320,7 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/product/:productId',
+      redirect: AuthRouteGuard.redirect,
       pageBuilder: (c, s) {
         final pid = s.pathParameters['productId'] ?? '';
         return _fadeSlide(
@@ -293,6 +332,7 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/editor',
+      redirect: AuthRouteGuard.redirect,
       pageBuilder: (c, s) => _fadeSlide(c, s, const DesignEditorScreen()),
     ),
     GoRoute(
@@ -301,28 +341,83 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/cart',
+      redirect: AuthRouteGuard.redirect,
       pageBuilder: (c, s) => _fadeSlide(c, s, const CartScreen()),
     ),
     GoRoute(
       path: '/checkout',
+      redirect: AuthRouteGuard.redirect,
       pageBuilder: (c, s) => _fadeSlide(c, s, const CheckoutScreen()),
+    ),
+    GoRoute(
+      path: '/order/:orderId/details',
+      pageBuilder: (c, s) {
+        final orderId = s.pathParameters['orderId'] ?? '';
+
+        return _fadeSlide(
+          c,
+          s,
+          FutureBuilder<Order>(
+            future: FirestoreService.fetchOrderById(orderId: orderId),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (!snap.hasData) {
+                return Scaffold(
+                  appBar: AppBar(title: const Text('Order Details')),
+                  body: const Center(child: Text('Order not found')),
+                );
+              }
+              return OrderDetailsScreen(order: snap.data!);
+            },
+          ),
+        );
+      },
     ),
     GoRoute(
       path: '/order/:orderId/track',
       pageBuilder: (c, s) {
+        // Use the order document id (orderId) to load the real order.
         final orderId = s.pathParameters['orderId'] ?? '';
-        final order =
-            MockOrders.all.where((o) => o.id == orderId).firstOrNull ??
-                MockOrders.all.first;
-        return _fadeSlide(c, s, OrderTrackingScreen(order: order));
+
+        print('ROUTER ENTER orderId=$orderId route=/order/:orderId/track');
+
+        return _fadeSlide(
+          c,
+          s,
+          FutureBuilder<Order>(
+            future: FirestoreService.fetchOrderById(orderId: orderId),
+            builder: (context, snap) {
+              print(
+                  'FUTUREBUILDER connectionState=${snap.connectionState} hasData=${snap.hasData} hasError=${snap.hasError} error=${snap.error}');
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (!snap.hasData) {
+                return Scaffold(
+                  appBar: AppBar(title: const Text('Order Tracking')),
+                  body: const Center(child: Text('Order not found')),
+                );
+              }
+              return OrderTrackingScreen(order: snap.data!);
+            },
+          ),
+        );
       },
     ),
     GoRoute(
       path: '/search',
+      redirect: AuthRouteGuard.redirect,
       pageBuilder: (c, s) => _fadeSlide(c, s, const SearchScreen()),
     ),
     GoRoute(
       path: '/notifications',
+      redirect: AuthRouteGuard.redirect,
       pageBuilder: (c, s) => _fadeSlide(c, s, const NotificationsScreen()),
     ),
   ],

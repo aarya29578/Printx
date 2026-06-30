@@ -11,6 +11,8 @@ class OrderTrackingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print(
+        'ORDER TRACKING SCREEN order.id=${order.id} order.orderNumber=${order.orderNumber} items=${order.items.length}');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -83,7 +85,9 @@ class OrderTrackingScreen extends StatelessWidget {
               indicatorStyle: IndicatorStyle(
                 width: 24,
                 height: 24,
-                color: step.isCompleted ? AppColors.primary : AppColors.textMuted.withOpacity(0.3),
+                color: step.isCompleted
+                    ? AppColors.primary
+                    : AppColors.textMuted.withOpacity(0.3),
                 iconStyle: step.isCompleted
                     ? IconStyle(
                         iconData: Icons.check_rounded,
@@ -108,21 +112,17 @@ class OrderTrackingScreen extends StatelessWidget {
                       step.title,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: step.isCompleted
-                            ? null
-                            : AppColors.textMuted,
+                        color: step.isCompleted ? null : AppColors.textMuted,
                       ),
                     ),
                     if (step.description != null)
                       Text(step.description!,
                           style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 12)),
+                              color: AppColors.textMuted, fontSize: 12)),
                     if (step.timestamp != null)
                       Text(_formatDate(step.timestamp!),
                           style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11)),
+                              color: AppColors.textMuted, fontSize: 11)),
                   ],
                 ),
               ),

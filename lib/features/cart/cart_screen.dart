@@ -71,8 +71,8 @@ class _CartScreenState extends State<CartScreen> {
                       size: 80, color: AppColors.textMuted),
                   const SizedBox(height: AppSpacing.md),
                   const Text('Your cart is empty',
-                      style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w600)),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                   const SizedBox(height: AppSpacing.sm),
                   Text('Add items to get started',
                       style: TextStyle(color: AppColors.textMuted)),
@@ -102,9 +102,8 @@ class _CartScreenState extends State<CartScreen> {
                           motion: const DrawerMotion(),
                           children: [
                             SlidableAction(
-                              onPressed: (_) => context
-                                  .read<CartCubit>()
-                                  .removeItem(item.id),
+                              onPressed: (_) =>
+                                  context.read<CartCubit>().removeItem(item.id),
                               backgroundColor: AppColors.error,
                               foregroundColor: Colors.white,
                               icon: Icons.delete_outline_rounded,
@@ -140,7 +139,8 @@ class _CartScreenState extends State<CartScreen> {
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     AppButton(
-                      label: state.appliedCouponCode != null ? 'Remove' : 'Apply',
+                      label:
+                          state.appliedCouponCode != null ? 'Remove' : 'Apply',
                       onPressed: () {
                         if (state.appliedCouponCode != null) {
                           context.read<CartCubit>().removeCoupon();
@@ -174,8 +174,8 @@ class _CartScreenState extends State<CartScreen> {
                         const SizedBox(width: 8),
                         Text(
                           '${state.appliedCouponCode!} applied! You save ${CurrencyFormatter.format(state.discount)}',
-                          style: TextStyle(
-                              color: AppColors.success, fontSize: 12),
+                          style:
+                              TextStyle(color: AppColors.success, fontSize: 12),
                         ),
                       ],
                     ),
@@ -199,18 +199,16 @@ class _CartScreenState extends State<CartScreen> {
                 ),
                 child: Column(
                   children: [
-                    _SummaryRow('Subtotal',
-                        CurrencyFormatter.format(state.subtotal)),
+                    _SummaryRow(
+                        'Subtotal', CurrencyFormatter.format(state.subtotal)),
                     if (state.discount > 0)
-                      _SummaryRow(
-                          'Discount',
+                      _SummaryRow('Discount',
                           '-${CurrencyFormatter.format(state.discount)}',
                           color: AppColors.success),
-                    _SummaryRow('GST (18%)',
-                        CurrencyFormatter.format(state.gst)),
+                    _SummaryRow(
+                        'GST (18%)', CurrencyFormatter.format(state.gst)),
                     const Divider(),
-                    _SummaryRow('Total',
-                        CurrencyFormatter.format(state.total),
+                    _SummaryRow('Total', CurrencyFormatter.format(state.total),
                         isBold: true),
                     const SizedBox(height: AppSpacing.md),
                     AppButton(
@@ -247,7 +245,7 @@ class _CartItemTile extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: CachedNetworkImage(
-                imageUrl: item.product.imageUrl,
+                imageUrl: item.productImage,
                 width: 70,
                 height: 70,
                 fit: BoxFit.cover,
@@ -258,7 +256,7 @@ class _CartItemTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.product.name,
+                  Text(item.productName,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
@@ -270,8 +268,7 @@ class _CartItemTile extends StatelessWidget {
                     Text('Finish: ${item.finish}',
                         style: TextStyle(
                             color: AppColors.textMuted, fontSize: 12)),
-                  Text(
-                      CurrencyFormatter.format(item.totalPrice),
+                  Text(CurrencyFormatter.format(item.totalPrice),
                       style: TextStyle(
                           color: AppColors.primary,
                           fontWeight: FontWeight.w700)),
@@ -319,8 +316,7 @@ class _SummaryRow extends StatelessWidget {
   final bool isBold;
   final Color? color;
 
-  const _SummaryRow(this.label, this.value,
-      {this.isBold = false, this.color});
+  const _SummaryRow(this.label, this.value, {this.isBold = false, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -331,14 +327,12 @@ class _SummaryRow extends StatelessWidget {
         children: [
           Text(label,
               style: TextStyle(
-                  fontWeight:
-                      isBold ? FontWeight.w700 : FontWeight.w400,
+                  fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
                   color: color,
                   fontSize: isBold ? 16 : 14)),
           Text(value,
               style: TextStyle(
-                  fontWeight:
-                      isBold ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
                   color: color ?? (isBold ? AppColors.primary : null),
                   fontSize: isBold ? 16 : 14)),
         ],

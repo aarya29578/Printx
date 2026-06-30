@@ -1,6 +1,10 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter/material.dart';
+
+import '../../features/auth/auth_repository.dart';
+import '../../services/firestore_service.dart';
 import '../../data/models/app_models.dart';
 import '../../data/models/product_model.dart';
 import '../../data/mock_data/mock_banners.dart';
@@ -51,8 +55,15 @@ class CartLoaded extends CartState {
 class CartCubit extends Cubit<CartState> {
   CartCubit() : super(const CartLoaded(items: []));
 
-  void addProduct(Product product,
-      {int quantity = 100, String? finish, String? size}) {
+  void addProduct(
+    Product product, {
+    int quantity = 100,
+    String? finish,
+    String? size,
+    String? customDesignUrl,
+    String? customDesignFileName,
+    String customerInstructions = "",
+  }) {
     final current = state as CartLoaded;
     const uuid = Uuid();
 
@@ -71,6 +82,9 @@ class CartCubit extends Cubit<CartState> {
           finish ?? (product.finishes.isNotEmpty ? product.finishes[0] : null),
       size: size ?? (product.sizes.isNotEmpty ? product.sizes[0] : null),
       specs: specs,
+      customDesignUrl: customDesignUrl,
+      customDesignFileName: customDesignFileName,
+      customerInstructions: customerInstructions,
     );
     emit(CartLoaded(
       items: [...current.items, item],
@@ -193,12 +207,18 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   CheckoutCubit() : super(CheckoutInitial());
 
   void start() {
+    // Initialize checkout in-progress state.
+    // (CheckoutScreen shows spinner only when state is CheckoutInitial.)
     emit(const CheckoutInProgress());
   }
 
   void nextStep() {
     final current = state;
     if (current is CheckoutInProgress) {
+      // Require address selection before moving to Delivery step.
+      if (current.step == 0 && current.selectedAddress == null) {
+        return;
+      }
       emit(current.copyWith(step: current.step + 1));
     }
   }
@@ -231,12 +251,58 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     }
   }
 
-  Future<void> placeOrder() async {
+  Future<void> placeOrder(BuildContext context) async {
     final current = state;
     if (current is! CheckoutInProgress) return;
-    await Future.delayed(const Duration(seconds: 1));
-    final orderNum = 'VPX-${20000 + DateTime.now().millisecond}';
-    emit(CheckoutSuccess(orderNum));
+
+    // Require address selection before placing order.
+    if (current.selectedAddress == null) {
+      emit(const CheckoutError('Please select a delivery address.'));
+      return;
+    }
+
+    // CheckoutCubit cannot access other cubits via `read()`.
+    // Use widget-provided context to access CartCubit state.
+    final cartState = BlocProvider.of<CartCubit>(context).state;
+    if (cartState is! CartLoaded) return;
+
+    final user = AuthRepository.currentUser;
+
+    if (user == null) {
+      emit(const CheckoutError('Not authenticated'));
+      return;
+    }
+
+    final items = <Map<String, dynamic>>[];
+    for (final ci in cartState.items) {
+      items.add({
+        'productId': ci.productId,
+        'productName': ci.productName,
+        'productImage': ci.productImage,
+        'quantity': ci.quantity,
+        'price': ci.basePrice,
+        'size': ci.size ?? '',
+        'finish': ci.finish ?? '',
+        'customDesignUrl': ci.customDesignUrl,
+        'customDesignFileName': ci.customDesignFileName,
+        'customerInstructions': ci.customerInstructions ?? '',
+      });
+    }
+
+    final totalAmount = cartState.total;
+
+    final orderId = await FirestoreService.createOrder(
+      orderId: const Uuid().v4(),
+      userId: user.uid,
+      userName: user.displayName ?? user.email ?? '',
+      userEmail: user.email ?? '',
+      deliveryAddress: current.selectedAddress!.fullAddress,
+      items: items,
+      totalAmount: totalAmount,
+    );
+
+    BlocProvider.of<CartCubit>(context).clearCart();
+    emit(CheckoutSuccess(orderId));
   }
 }
 

@@ -270,9 +270,17 @@ class ProductDetailCubit extends Cubit<ProductDetailState> {
   Future<void> loadProductById(String productId) async {
     print('\n🔍 [ProductDetailCubit] loadProductById(productId=$productId)');
     final all = await FirestoreService.fetchProducts();
+    if (all.isEmpty) {
+      print('  ❌ [ProductDetailCubit] No products found');
+      return;
+    }
     final product = all.firstWhere(
       (p) => p.id == productId,
-      orElse: () => all.first,
+      orElse: () {
+        print(
+            '  ⚠️ [ProductDetailCubit] Product $productId not found, using first product');
+        return all.first;
+      },
     );
     print(
         '  ✅ [ProductDetailCubit] Loaded product id=${product.id} name=${product.name}');

@@ -132,6 +132,9 @@ class NotificationModel extends Equatable {
 
 class CartItem extends Equatable {
   final String id;
+  final String? customDesignUrl;
+  final String? customDesignFileName;
+  final String customerInstructions;
   final String productId;
   final String productName;
   final String productImage;
@@ -144,6 +147,9 @@ class CartItem extends Equatable {
 
   const CartItem({
     required this.id,
+    this.customDesignUrl,
+    this.customDesignFileName,
+    this.customerInstructions = "",
     required this.productId,
     required this.productName,
     required this.productImage,
@@ -168,6 +174,9 @@ class CartItem extends Equatable {
     String? size,
     String? specs,
     String? designId,
+    String? customDesignUrl,
+    String? customDesignFileName,
+    String? customerInstructions,
   }) {
     return CartItem(
       id: id ?? this.id,
@@ -180,6 +189,9 @@ class CartItem extends Equatable {
       size: size ?? this.size,
       specs: specs ?? this.specs,
       designId: designId ?? this.designId,
+      customDesignUrl: customDesignUrl ?? this.customDesignUrl,
+      customDesignFileName: customDesignFileName ?? this.customDesignFileName,
+      customerInstructions: customerInstructions ?? this.customerInstructions,
     );
   }
 
