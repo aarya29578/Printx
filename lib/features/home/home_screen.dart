@@ -212,7 +212,6 @@ class _HomeContent extends StatelessWidget {
                         product: state.trending[index],
                         onTap: () => context
                             .push('/product/${state.trending[index].id}'),
-                        onDesignNow: () => context.push('/editor'),
                       ),
                     ),
                   ),

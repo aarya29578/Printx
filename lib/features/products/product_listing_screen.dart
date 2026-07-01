@@ -147,7 +147,6 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
                         child: ProductCard(
                           product: product,
                           onTap: () => context.push('/product/${product.id}'),
-                          onDesignNow: () => context.push('/editor'),
                         ),
                       ),
                     ),

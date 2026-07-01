@@ -77,11 +77,13 @@ export default function ProductsPage() {
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
+        // stopPropagation prevents clicks on any action button from
+        // bubbling up to the <tr> onRowClick (which would navigate to edit)
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <button type="button" title="View" className="rounded p-1 hover:bg-gray-100"><Eye className="h-4 w-4" /></button>
           <button type="button" title="Edit" className="rounded p-1 hover:bg-gray-100" onClick={() => navigate(`/products/${row.original.id}/edit`)}><Pencil className="h-4 w-4" /></button>
           <button type="button" title="Toggle" className="rounded p-1 hover:bg-gray-100" onClick={() => { toggleStatus(row.original.id); toast.success('Product status updated') }}><StatusBadge status={row.original.status === 'active' ? 'active' : 'draft'} /></button>
-          <button type="button" title="Delete" className="rounded p-1 text-red-600 hover:bg-red-50" onClick={() => setDeletingId(row.original.id)}><Trash2 className="h-4 w-4" /></button>
+          <button type="button" title="Delete" className="rounded p-1 text-red-600 hover:bg-red-50" onClick={() => { console.log('[DELETE] Button clicked for id:', row.original.id); setDeletingId(row.original.id) }}><Trash2 className="h-4 w-4" /></button>
         </div>
       ),
     }),
@@ -138,15 +140,25 @@ export default function ProductsPage() {
       <ConfirmDialog
         isOpen={Boolean(deletingId)}
         onClose={() => setDeletingId(null)}
+        requireTyped={false}
         onConfirm={async () => {
-          const deletingProduct = products.find((p) => p.id === deletingId)
-          const categoryToRefresh = deletingProduct?.category
-          await deleteProduct(deletingId)
-          if (categoryToRefresh) await refreshCategory(categoryToRefresh)
-          toast.success('Product deleted')
+          console.log('[DELETE] onConfirm fired, deletingId:', deletingId)
+          try {
+            const deletingProduct = products.find((p) => p.id === deletingId)
+            const categoryToRefresh = deletingProduct?.category
+            console.log('[DELETE] calling deleteProduct with id:', deletingId)
+            await deleteProduct(deletingId)
+            console.log('[DELETE] deleteProduct resolved, refreshing category:', categoryToRefresh)
+            if (categoryToRefresh) await refreshCategory(categoryToRefresh)
+            setDeletingId(null)
+            toast.success('Product deleted')
+          } catch (err) {
+            console.error('[DELETE] onConfirm caught error:', err)
+            toast.error(err?.message || 'Failed to delete product')
+          }
         }}
         title="Delete Product"
-        description="This will permanently delete the selected product."
+        description="This will permanently delete the selected product. This action cannot be undone."
       />
 
       <ConfirmDialog

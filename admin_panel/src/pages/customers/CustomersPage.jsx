@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Eye, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -10,35 +10,109 @@ import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import StatusBadge from '../../components/ui/Badge'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import Avatar from '../../components/ui/Avatar'
 import { useCustomersStore } from '../../store/customersStore'
 import { formatINR } from '../../core/utils/formatCurrency'
+import { safeFormatDate } from '../../core/utils/safeFormatDate'
 
 const columnHelper = createColumnHelper()
 
 export default function CustomersPage() {
   const navigate = useNavigate()
-  const { customers, toggleStatus, deleteCustomer } = useCustomersStore()
+  const { customers, loadCustomers, subscribeToUpdates, toggleStatus, deleteCustomer } = useCustomersStore()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
   const [city, setCity] = useState('all')
   const [deleteId, setDeleteId] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  const cities = [...new Set(customers.map((item) => item.city))]
+  // Load initial customers and subscribe to updates
+  useEffect(() => {
+    loadCustomers()
+    const unsubscribe = subscribeToUpdates()
+    return () => unsubscribe?.()
+  }, [loadCustomers, subscribeToUpdates])
+
+  const cities = useMemo(() => [...new Set(customers.map((item) => item.city).filter(Boolean))], [customers])
+
   const filtered = useMemo(() => customers.filter((item) => {
     const q = query.toLowerCase()
-    const byQuery = item.name.toLowerCase().includes(q) || item.email.toLowerCase().includes(q)
+    const byQuery = (
+      (item.name || '').toLowerCase().includes(q) ||
+      (item.email || '').toLowerCase().includes(q) ||
+      (item.phone || '').toLowerCase().includes(q)
+    )
     const byStatus = status === 'all' || item.status === status
     const byCity = city === 'all' || item.city === city
     return byQuery && byStatus && byCity
   }), [customers, query, status, city])
 
+  const stats = useMemo(() => {
+    const active = customers.filter((c) => c.status === 'active').length
+    const blocked = customers.filter((c) => c.status === 'blocked').length
+    return { total: customers.length, active, blocked }
+  }, [customers])
+
+  const handleDelete = async () => {
+    if (!deleteId) return
+    setIsDeleting(true)
+    try {
+      const success = await deleteCustomer(deleteId)
+      if (success) {
+        toast.success('Customer deleted successfully')
+        setDeleteId(null)
+      } else {
+        toast.error('Failed to delete customer')
+      }
+    } catch (error) {
+      toast.error('Error deleting customer')
+      console.error(error)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleExportCSV = () => {
+    if (filtered.length === 0) {
+      toast.error('No customers to export')
+      return
+    }
+
+    const headers = ['Name', 'Email', 'Phone', 'City', 'Orders', 'Total Spend', 'Status', 'Joined']
+    const rows = filtered.map((c) => [
+      c.name,
+      c.email,
+      c.phone,
+      c.city,
+      c.orders,
+      c.totalSpend,
+      c.status,
+      c.joinedAt,
+    ])
+
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `customers-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+    toast.success('CSV exported successfully')
+  }
+
   const columns = [
     columnHelper.accessor('name', {
       header: 'Customer',
       cell: ({ row }) => (
-        <div>
-          <p className="font-medium">{row.original.name}</p>
-          <p className="text-xs text-gray-500">Joined {row.original.joinedAt}</p>
+        <div className="flex items-center gap-2">
+          <Avatar name={row.original.name} src={row.original.profileImage} size="sm" />
+          <div>
+            <p className="font-medium">{row.original.name}</p>
+            <p className="text-xs text-gray-500">Joined {row.original.joinedAt}</p>
+          </div>
         </div>
       ),
     }),
@@ -47,7 +121,6 @@ export default function CustomersPage() {
     columnHelper.accessor('city', { header: 'City' }),
     columnHelper.accessor('orders', { header: 'Orders' }),
     columnHelper.accessor('totalSpend', { header: 'Spend', cell: (info) => formatINR(info.getValue()) }),
-    columnHelper.accessor('joinedAt', { header: 'Joined' }),
     columnHelper.accessor('status', { header: 'Status', cell: (info) => <StatusBadge status={info.getValue()} /> }),
     columnHelper.display({
       id: 'actions',
@@ -66,14 +139,14 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Customers" subtitle={`${customers.length} customers`} actions={<Button variant="secondary">Export CSV</Button>} />
+      <PageHeader title="Customers" subtitle={`${stats.total} customers`} actions={<Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ['Total', customers.length],
-          ['New This Month', customers.filter((c) => c.joinedAt.startsWith('2024-05')).length],
-          ['Active', customers.filter((c) => c.status === 'active').length],
-          ['Blocked', customers.filter((c) => c.status === 'blocked').length],
+          ['Total', stats.total],
+          ['Active', stats.active],
+          ['Blocked', stats.blocked],
+          ['Total Spend', formatINR(customers.reduce((sum, c) => sum + (c.totalSpend || 0), 0))],
         ].map((item) => (
           <div key={item[0]} className="rounded-xl border border-gray-100 bg-white p-4">
             <p className="text-sm text-gray-500">{item[0]}</p>
@@ -83,7 +156,7 @@ export default function CustomersPage() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Input className="w-72" placeholder="Search customers" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <Input className="w-72" placeholder="Search name, email, phone..." value={query} onChange={(e) => setQuery(e.target.value)} />
         <Select className="w-44" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="all">All status</option>
           <option value="active">Active</option>
@@ -98,14 +171,12 @@ export default function CustomersPage() {
       <DataTable data={filtered} columns={columns} />
 
       <ConfirmDialog
-        isOpen={Boolean(deleteId)}
-        onClose={() => setDeleteId(null)}
-        onConfirm={() => {
-          deleteCustomer(deleteId)
-          toast.success('Customer removed')
-        }}
+        isOpen={!!deleteId}
         title="Delete Customer"
-        description="This will remove customer from admin records."
+        message="Are you sure you want to delete this customer? This action cannot be undone."
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
+        isLoading={isDeleting}
       />
     </div>
   )

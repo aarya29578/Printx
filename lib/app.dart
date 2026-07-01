@@ -353,19 +353,19 @@ final _router = GoRouter(
       path: '/order/:orderId/details',
       pageBuilder: (c, s) {
         final orderId = s.pathParameters['orderId'] ?? '';
-
         return _fadeSlide(
           c,
           s,
-          FutureBuilder<Order>(
-            future: FirestoreService.fetchOrderById(orderId: orderId),
+          StreamBuilder<Order>(
+            stream: FirestoreService.watchOrderById(orderId: orderId),
             builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
+              if (snap.connectionState == ConnectionState.waiting &&
+                  !snap.hasData) {
                 return const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
                 );
               }
-              if (!snap.hasData) {
+              if (snap.hasError || !snap.hasData) {
                 return Scaffold(
                   appBar: AppBar(title: const Text('Order Details')),
                   body: const Center(child: Text('Order not found')),
@@ -380,25 +380,23 @@ final _router = GoRouter(
     GoRoute(
       path: '/order/:orderId/track',
       pageBuilder: (c, s) {
-        // Use the order document id (orderId) to load the real order.
         final orderId = s.pathParameters['orderId'] ?? '';
-
         print('ROUTER ENTER orderId=$orderId route=/order/:orderId/track');
-
         return _fadeSlide(
           c,
           s,
-          FutureBuilder<Order>(
-            future: FirestoreService.fetchOrderById(orderId: orderId),
+          StreamBuilder<Order>(
+            stream: FirestoreService.watchOrderById(orderId: orderId),
             builder: (context, snap) {
               print(
-                  'FUTUREBUILDER connectionState=${snap.connectionState} hasData=${snap.hasData} hasError=${snap.hasError} error=${snap.error}');
-              if (snap.connectionState == ConnectionState.waiting) {
+                  'STREAMBUILDER connectionState=${snap.connectionState} hasData=${snap.hasData} hasError=${snap.hasError} error=${snap.error}');
+              if (snap.connectionState == ConnectionState.waiting &&
+                  !snap.hasData) {
                 return const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
                 );
               }
-              if (!snap.hasData) {
+              if (snap.hasError || !snap.hasData) {
                 return Scaffold(
                   appBar: AppBar(title: const Text('Order Tracking')),
                   body: const Center(child: Text('Order not found')),

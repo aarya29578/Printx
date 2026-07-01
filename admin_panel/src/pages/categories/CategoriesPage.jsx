@@ -49,19 +49,29 @@ const iconOptions = [
 
 const iconByName = Object.fromEntries(iconOptions.map((item) => [item.value, item.Icon]))
 
-function SortableCategory({ item, onEdit, onDelete, onAddProduct }) {
+function SortableCategory({ item, onEdit, onDelete, onAddProduct, onViewDetails }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
   const Icon = iconByName[item.icon] || Tag
 
   return (
     <div ref={setNodeRef} style={style} className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="relative grid h-20 place-items-center rounded-t-xl text-white" style={{ background: item.color }}>
-        <button type="button" {...attributes} {...listeners} className="absolute left-2 top-2 rounded bg-white/20 p-1 text-white" title="Drag"><GripVertical className="h-4 w-4" /></button>
+      <button
+        type="button"
+        onClick={onViewDetails}
+        className="relative grid h-20 w-full place-items-center rounded-t-xl text-white transition hover:opacity-90"
+        style={{ background: item.color }}
+        title="Click to view products in this category"
+      >
+        <span className="absolute left-2 top-2 rounded bg-white/20 p-1 text-white" {...attributes} {...listeners}>
+          <GripVertical className="h-4 w-4" />
+        </span>
         <Icon className="h-7 w-7" />
-      </div>
+      </button>
       <div className="p-4">
-        <p className="font-medium dark:text-white">{item.name}</p>
+        <p className="font-medium dark:text-white cursor-pointer hover:text-primary-600" onClick={onViewDetails}>
+          {item.name}
+        </p>
         <p className="text-sm text-gray-500">{item.productCount} products</p>
         <div className="mt-3 flex items-center justify-between">
           <StatusBadge status={item.status} />
@@ -157,6 +167,7 @@ export default function CategoriesPage() {
                 onEdit={openEdit}
                 onDelete={setDeleteId}
                 onAddProduct={(category) => navigate(`/products/add?category=${encodeURIComponent(category.id)}`)}
+                onViewDetails={() => navigate(`/categories/${item.id}`)}
               />
             ))}
           </div>

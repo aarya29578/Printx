@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/models/order_model.dart';
@@ -41,17 +43,27 @@ class OrdersError extends OrdersState {
 }
 
 class OrdersCubit extends Cubit<OrdersState> {
+  StreamSubscription<List<Order>>? _sub;
+
   OrdersCubit() : super(OrdersLoading());
 
-  Future<void> load() async {
+  void load() {
     emit(OrdersLoading());
-    await Future.delayed(const Duration(milliseconds: 200));
     final currentUser = AuthRepository.currentUser;
     if (currentUser == null) {
       emit(const OrdersError('Not authenticated'));
       return;
     }
-    emit(OrdersLoaded(
-        await FirestoreService.fetchOrdersForUser(userId: currentUser.uid)));
+    _sub?.cancel();
+    _sub = FirestoreService.watchOrdersForUser(userId: currentUser.uid).listen(
+      (orders) => emit(OrdersLoaded(orders)),
+      onError: (e) => emit(OrdersError(e.toString())),
+    );
+  }
+
+  @override
+  Future<void> close() async {
+    await _sub?.cancel();
+    return super.close();
   }
 }

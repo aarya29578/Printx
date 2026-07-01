@@ -83,7 +83,7 @@ const seedProductsInFirestore = async () => {
   await batch.commit()
 }
 
-export const useProductsStore = create((set) => ({
+export const useProductsStore = create((set, get) => ({
   products: mockProducts,
   hasLoadedCloud: false,
   isLoadingCloud: false,
@@ -177,33 +177,41 @@ export const useProductsStore = create((set) => ({
     }
   },
   deleteProduct: async (id) => {
-    // Get the product to find its category before deletion
-    const state = await new Promise(resolve => 
-      set((s) => { 
-        resolve(s); 
-        return s; 
-      })
-    );
-    const product = state.products.find(p => p.id === id)
+    console.log('[DELETE] Step 1: deleteProduct() called with id:', id)
+
+    const product = get().products.find((p) => p.id === id)
     const categoryId = product?.category ?? ''
-    
-    console.log('🗑️ [DELETE] Deleting product:', {
-      id,
-      categoryId,
-      timestamp: new Date().toISOString()
-    })
-    
+
+    console.log('[DELETE] Step 2: product found:', product ? `name="${product.name}" category="${categoryId}"` : 'NOT FOUND in store')
+
+    // Optimistic removal from UI
     set((state) => ({ products: state.products.filter((item) => item.id !== id) }))
-    
-    if (!isFirebaseConfigured) return
-    
-    // Delete product
-    await deleteDoc(doc(db, COLLECTION, id))
-    
-    // Decrement category count
-    if (categoryId) {
-      await updateCategoryProductCount(categoryId, -1)
+    console.log('[DELETE] Step 3: optimistic UI update applied')
+
+    if (!isFirebaseConfigured) {
+      console.warn('[DELETE] Step 4: Firebase NOT configured — Firestore delete skipped. Product will return on reload.')
+      return
     }
+
+    const path = `${COLLECTION}/${id}`
+    console.log('[DELETE] Step 4: calling deleteDoc on path:', path)
+
+    try {
+      await deleteDoc(doc(db, COLLECTION, id))
+      console.log('[DELETE] Step 5: deleteDoc SUCCESS for path:', path)
+    } catch (err) {
+      console.error('[DELETE] Step 5: deleteDoc FAILED:', err.code, err.message)
+      throw err
+    }
+
+    if (categoryId) {
+      console.log('[DELETE] Step 6: decrementing category count for:', categoryId)
+      await updateCategoryProductCount(categoryId, -1)
+    } else {
+      console.log('[DELETE] Step 6: no category — skipping count update')
+    }
+
+    console.log('[DELETE] Step 7: deleteProduct() complete')
   },
   toggleStatus: async (id) => {
     let nextStatus = 'draft'
@@ -231,17 +239,11 @@ export const useProductsStore = create((set) => ({
     console.log('🔄 [BULK] Updated status for products:', { count: ids.length, status })
   },
   deleteBulk: async (ids) => {
-    // Get products before deletion to find categories
-    const state = await new Promise(resolve => 
-      set((s) => { 
-        resolve(s); 
-        return s; 
-      })
-    );
-    
+    const { products } = get()
+
     const categoryDeltas = {}
     ids.forEach(id => {
-      const product = state.products.find(p => p.id === id)
+      const product = products.find(p => p.id === id)
       if (product?.category) {
         categoryDeltas[product.category] = (categoryDeltas[product.category] || 0) - 1
       }

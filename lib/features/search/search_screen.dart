@@ -191,7 +191,6 @@ class _SearchScreenState extends State<SearchScreen> {
           child: ProductCard(
             product: _results[index],
             onTap: () => context.push('/product/${_results[index].id}'),
-            onDesignNow: () => context.push('/editor'),
           ),
         );
       },

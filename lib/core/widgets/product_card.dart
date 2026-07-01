@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
@@ -10,18 +11,19 @@ import '../../data/models/product_model.dart';
 import '../utils/currency_formatter.dart';
 import 'shimmer_loader.dart';
 import 'app_button.dart';
+import '../../features/cart/cart_cubit.dart';
 
 class ProductCard extends StatefulWidget {
   final Product product;
   final VoidCallback? onTap;
-  final VoidCallback? onDesignNow;
+  final VoidCallback? onAddToCart;
   final int animationDelay;
 
   const ProductCard({
     super.key,
     required this.product,
     this.onTap,
-    this.onDesignNow,
+    this.onAddToCart,
     this.animationDelay = 0,
   });
 
@@ -93,8 +95,8 @@ class _ProductCardState extends State<ProductCard> {
                                 : widget.product.badge == 'NEW'
                                     ? AppColors.success
                                     : AppColors.error,
-                            borderRadius: BorderRadius.circular(
-                                AppSpacing.radiusPill),
+                            borderRadius:
+                                BorderRadius.circular(AppSpacing.radiusPill),
                           ),
                           child: Text(
                             widget.product.badge!,
@@ -211,10 +213,38 @@ class _ProductCardState extends State<ProductCard> {
                               ],
                             ),
                           ),
-                          // Design now button
+                          // Add to Cart button
                           AppButton.small(
-                            label: 'Design',
-                            onPressed: widget.onDesignNow,
+                            label: '🛒 Add to Cart',
+                            onPressed: () {
+                              // Add product to cart with default values
+                              context.read<CartCubit>().addProduct(
+                                    widget.product,
+                                    quantity: 100,
+                                    finish: widget.product.finishes.isNotEmpty
+                                        ? widget.product.finishes[0]
+                                        : null,
+                                    size: widget.product.sizes.isNotEmpty
+                                        ? widget.product.sizes[0]
+                                        : null,
+                                    customDesignUrl: null,
+                                    customDesignFileName: null,
+                                    customerInstructions: "",
+                                  );
+
+                              HapticFeedback.lightImpact();
+
+                              // Show success message
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Added to Cart'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+
+                              // Call custom callback if provided
+                              widget.onAddToCart?.call();
+                            },
                           ),
                         ],
                       ),

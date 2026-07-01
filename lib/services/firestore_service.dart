@@ -158,6 +158,28 @@ class FirestoreService {
   // Orders (NO mock/fallback)
   // ─────────────────────────────────────────────────────────────────────────────
 
+  /// Real-time stream of orders for [userId], sorted newest-first.
+  static Stream<List<Order>> watchOrdersForUser({required String userId}) {
+    return orders
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => _orderFromMap(doc.id, doc.data()))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  /// Real-time stream for a single order document.
+  static Stream<Order> watchOrderById({required String orderId}) {
+    return orders.doc(orderId).snapshots().map((snap) {
+      if (!snap.exists) throw StateError('Order not found: $orderId');
+      return _orderFromMap(snap.id, snap.data() as Map<String, dynamic>);
+    });
+  }
+
   /// Reads ONLY orders belonging to [userId].
   static Future<List<Order>> fetchOrdersForUser({
     required String userId,

@@ -16,7 +16,6 @@ const breadcrumbMap = {
   '/customers': ['Customers'],
   '/customers/:id': ['Customers', 'Customer Detail'],
   '/coupons': ['Coupons'],
-  '/templates': ['Templates'],
   '/reviews': ['Reviews'],
   '/notifications': ['Notifications'],
   '/delivery': ['Delivery'],

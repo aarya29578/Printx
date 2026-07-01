@@ -9,6 +9,7 @@ import DashboardPage from './pages/dashboard/DashboardPage'
 import ProductsPage from './pages/products/ProductsPage'
 import AddEditProductPage from './pages/products/AddEditProductPage'
 import CategoriesPage from './pages/categories/CategoriesPage'
+import CategoryDetailsPage from './pages/categories/CategoryDetailsPage'
 import BannersPage from './pages/banners/BannersPage'
 import AddEditBannerPage from './pages/banners/AddEditBannerPage'
 import OrdersPage from './pages/orders/OrdersPage'
@@ -18,7 +19,6 @@ import OrdersByProductPage from './pages/orders/OrdersByProductPage'
 import CustomersPage from './pages/customers/CustomersPage'
 import CustomerDetailPage from './pages/customers/CustomerDetailPage'
 import CouponsPage from './pages/coupons/CouponsPage'
-import TemplatesPage from './pages/templates/TemplatesPage'
 import ReviewsPage from './pages/reviews/ReviewsPage'
 import PushNotificationsPage from './pages/notifications/PushNotificationsPage'
 import DeliverySettingsPage from './pages/delivery/DeliverySettingsPage'
@@ -83,6 +83,7 @@ export default function App() {
             <Route path="products/add" element={<AddEditProductPage />} />
             <Route path="products/:id/edit" element={<AddEditProductPage />} />
             <Route path="categories" element={<CategoriesPage />} />
+            <Route path="categories/:categoryId" element={<CategoryDetailsPage />} />
             <Route path="banners" element={<BannersPage />} />
             <Route path="banners/add" element={<AddEditBannerPage />} />
             <Route path="banners/:id/edit" element={<AddEditBannerPage />} />
@@ -93,7 +94,6 @@ export default function App() {
             <Route path="customers" element={<CustomersPage />} />
             <Route path="customers/:id" element={<CustomerDetailPage />} />
             <Route path="coupons" element={<CouponsPage />} />
-            <Route path="templates" element={<TemplatesPage />} />
             <Route path="reviews" element={<ReviewsPage />} />
             <Route path="notifications" element={<PushNotificationsPage />} />
             <Route path="delivery" element={<DeliverySettingsPage />} />

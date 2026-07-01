@@ -4,7 +4,6 @@ export const routeItems = [
     { label: 'Products', path: '/products', icon: 'Package' },
     { label: 'Categories', path: '/categories', icon: 'Grid3x3' },
     { label: 'Hero Banners', path: '/banners', icon: 'Image' },
-    { label: 'Templates', path: '/templates', icon: 'Palette' },
   ] },
   { group: 'COMMERCE', items: [
     { label: 'Orders', path: '/orders', icon: 'ShoppingBag', badge: 'pendingOrders' },
