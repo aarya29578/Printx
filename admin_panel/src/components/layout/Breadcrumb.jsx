@@ -10,6 +10,8 @@ const breadcrumbMap = {
   '/categories': ['Categories'],
   '/banners': ['Banners'],
   '/orders': ['Orders'],
+  '/orders/category/:categoryId': ['Orders', 'Category'],
+  '/orders/category/:categoryId/product/:productId': ['Orders', 'Category', 'Product'],
   '/orders/:id': ['Orders', 'Order Detail'],
   '/customers': ['Customers'],
   '/customers/:id': ['Customers', 'Customer Detail'],
@@ -26,6 +28,8 @@ const breadcrumbMap = {
 function resolveBreadcrumb(pathname) {
   const dynamicPath = pathname
     .replace(/\/products\/[^/]+\/edit$/, '/products/:id/edit')
+    .replace(/\/orders\/category\/[^/]+\/product\/[^/]+$/, '/orders/category/:categoryId/product/:productId')
+    .replace(/\/orders\/category\/[^/]+$/, '/orders/category/:categoryId')
     .replace(/\/orders\/[^/]+$/, '/orders/:id')
     .replace(/\/customers\/[^/]+$/, '/customers/:id')
 

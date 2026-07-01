@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { createColumnHelper } from '@tanstack/react-table'
-import { Eye, FileDown } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { createColumnHelper } from '@tanstack/react-table'
+import { Eye, FileDown, Grid3X3, List, ShoppingBag } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DataTable from '../../components/data/DataTable'
 import PageHeader from '../../components/ui/PageHeader'
@@ -11,193 +11,151 @@ import Select from '../../components/ui/Select'
 import Button from '../../components/ui/Button'
 import Tabs from '../../components/ui/Tabs'
 import { useOrdersStore } from '../../store/ordersStore'
+import { useProductsStore } from '../../store/productsStore'
+import { useCategoriesStore } from '../../store/categoriesStore'
 import { formatINR } from '../../core/utils/formatCurrency'
 import { generateInvoicePDF } from '../../core/utils/generatePDF'
-
-// ---- Centralized Order Date Normalization / Formatting (Orders page only) ----
-// Supports: Firestore Timestamp (toDate), {seconds,nanoseconds}, Date, ISO string,
-// Unix ms, Unix seconds, null/undefined/empty/invalid string.
-const normalizeOrderDate = (value) => {
-  if (value === null || value === undefined) return null
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-    // Treat numeric strings as potential Unix timestamps (ms or seconds)
-    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
-      const num = Number(trimmed)
-      if (!Number.isFinite(num)) return null
-      // Heuristic: ms if > 1e12, else seconds
-      const millis = num > 1e12 ? num : num * 1000
-      const d = new Date(millis)
-      return Number.isNaN(d.getTime()) ? null : d
-    }
-
-    // ISO / RFC strings
-    const d = new Date(trimmed)
-    return Number.isNaN(d.getTime()) ? null : d
-  }
-
-  // Firestore Timestamp-like object (has toDate)
-  if (typeof value === 'object' && typeof value.toDate === 'function') {
-    try {
-      const d = value.toDate()
-      return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null
-    } catch {
-      return null
-    }
-  }
-
-  // { seconds, nanoseconds } format
-  if (typeof value === 'object' && value !== null && (('seconds' in value) || ('nanoseconds' in value))) {
-    const seconds = value.seconds
-    const nanoseconds = value.nanoseconds
-    const ms = Number(seconds) * 1000 + Math.floor(Number(nanoseconds || 0) / 1e6)
-    if (!Number.isFinite(ms)) return null
-    const d = new Date(ms)
-    return Number.isNaN(d.getTime()) ? null : d
-  }
-
-  // Unix milliseconds / seconds as numbers
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) return null
-    const millis = value > 1e12 ? value : value * 1000
-    const d = new Date(millis)
-    return Number.isNaN(d.getTime()) ? null : d
-  }
-
-  // JS Date
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value
-  }
-
-  return null
-}
-
-const safeFormatOrderDate = (value) => {
-  const d = normalizeOrderDate(value)
-  if (!d) return ''
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(d)
-}
-
+import { safeFormatOrderDate } from '../../core/utils/formatOrderDate'
 
 const columnHelper = createColumnHelper()
-
 
 export default function OrdersPage() {
   const navigate = useNavigate()
   const { orders, updateStatus } = useOrdersStore()
+  const { products } = useProductsStore()
+  const { categories } = useCategoriesStore()
+
+  const [view, setView] = useState('categories')
   const [query, setQuery] = useState('')
   const [payment, setPayment] = useState('all')
   const [statusTab, setStatusTab] = useState('all')
 
-  const tabs = [
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const countByStatus = (s) => orders.filter((o) => o?.status === s).length
+  const countNewToday = orders.filter((o) => {
+    const ca = o?.createdAt
+    if (!ca) return false
+    const iso = typeof ca === 'string' ? ca : null
+    return iso ? iso.slice(0, 10) === todayKey : false
+  }).length
+
+  // ── Order counts per category (computed) ──────────────────────────────────
+  const categoryOrderCounts = useMemo(() => {
+    const pidToCategory = {}
+    products.forEach((p) => { if (p.id && p.category) pidToCategory[p.id] = p.category })
+
+    const counts = {}
+    orders.forEach((order) => {
+      const seenCats = new Set()
+      ;(order.items || []).forEach((item) => {
+        const catId = pidToCategory[item.productId]
+        if (catId && !seenCats.has(catId)) {
+          counts[catId] = (counts[catId] || 0) + 1
+          seenCats.add(catId)
+        }
+      })
+    })
+    return counts
+  }, [orders, products])
+
+  // ── Flat table (All Orders view) ───────────────────────────────────────────
+  const statusTabs = [
     { label: `All (${orders.length})`, value: 'all' },
-    { label: `Pending (${orders.filter((o) => o.status === 'pending').length})`, value: 'pending' },
-    { label: `Design Review (${orders.filter((o) => o.status === 'design_review').length})`, value: 'design_review' },
-    { label: `Printing (${orders.filter((o) => o.status === 'printing').length})`, value: 'printing' },
-    { label: `Shipped (${orders.filter((o) => o.status === 'shipped').length})`, value: 'shipped' },
-    { label: `Delivered (${orders.filter((o) => o.status === 'delivered').length})`, value: 'delivered' },
-    { label: `Cancelled (${orders.filter((o) => o.status === 'cancelled').length})`, value: 'cancelled' },
+    { label: `Pending (${countByStatus('pending')})`, value: 'pending' },
+    { label: `Design Review (${countByStatus('design_review')})`, value: 'design_review' },
+    { label: `Printing (${countByStatus('printing')})`, value: 'printing' },
+    { label: `Shipped (${countByStatus('shipped')})`, value: 'shipped' },
+    { label: `Delivered (${countByStatus('delivered')})`, value: 'delivered' },
+    { label: `Cancelled (${countByStatus('cancelled')})`, value: 'cancelled' },
   ]
 
   const filtered = useMemo(() => orders.filter((item) => {
     const q = query.toLowerCase()
-    const itemId = item?.id ?? ''
-    const customerName = item?.userName ?? ''
-    const matchesQuery = String(itemId).toLowerCase().includes(q) || String(customerName).toLowerCase().includes(q)
+    const matchesQuery =
+      String(item?.id ?? '').toLowerCase().includes(q) ||
+      String(item?.userName ?? '').toLowerCase().includes(q)
     const matchesPayment = payment === 'all' || item?.payment === payment
     const matchesStatus = statusTab === 'all' || item?.status === statusTab
     return matchesQuery && matchesPayment && matchesStatus
   }), [orders, query, payment, statusTab])
 
-
   const columns = [
     columnHelper.accessor('id', {
       header: 'Order ID',
-      cell: ({ row }) => <span className="font-mono font-medium text-primary-600">{row.original.id}</span>,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs font-medium text-primary-600">{row.original.id}</span>
+      ),
     }),
     columnHelper.display({
       id: 'customer',
       header: 'Customer',
-      cell: ({ row }) => {
-        const customerName = row.original?.userName
-        const customerEmail = row.original?.userEmail
-        // Phone is not present in sample order docs; do not guess.
-        const customerPhone = row.original?.userPhone
-
-        return (
-          <div>
-            <p className="font-medium">{customerName}</p>
-            {customerPhone ? <p className="text-xs text-gray-500">{customerPhone}</p> : null}
-            {customerEmail ? <p className="text-xs text-gray-500">{customerEmail}</p> : null}
-          </div>
-        )
-      },
+      cell: ({ row }) => (
+        <div>
+          <p className="font-medium">{row.original?.userName}</p>
+          {row.original?.userPhone && <p className="text-xs text-gray-500">{row.original.userPhone}</p>}
+          {row.original?.userEmail && <p className="text-xs text-gray-500">{row.original.userEmail}</p>}
+        </div>
+      ),
     }),
     columnHelper.display({
       id: 'products',
       header: 'Product(s)',
-      cell: ({ row }) => {
-        const items = Array.isArray(row.original?.items) ? row.original.items : []
-        return (
-          <div className="space-y-1">
-            {items.map((it, idx) => (
-              <p key={`${row.original.id}-it-${idx}`} className="text-sm">{it.productName}</p>
-            ))}
-          </div>
-        )
-      },
-    }),
-    columnHelper.display({
-      id: 'qty',
-      header: 'Qty',
-      cell: ({ row }) => {
-        const items = Array.isArray(row.original?.items) ? row.original.items : []
-        // Sum quantities across items
-        const totalQty = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
-        return <span>{totalQty}</span>
-      },
+      cell: ({ row }) => (
+        <div className="space-y-0.5">
+          {(row.original?.items || []).map((it, idx) => (
+            <p key={idx} className="text-sm">{it.productName}</p>
+          ))}
+        </div>
+      ),
     }),
     columnHelper.accessor('totalAmount', {
       header: 'Amount',
       cell: (info) => <span className="font-semibold">{formatINR(info.getValue())}</span>,
     }),
-
     columnHelper.accessor('payment', {
       header: 'Payment',
-      cell: (info) => <span className="rounded-full bg-gray-100 px-2 py-1 text-xs">{info.getValue()}</span>,
+      cell: (info) => (
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs">{info.getValue() || '—'}</span>
+      ),
     }),
     columnHelper.accessor('status', {
       header: 'Status',
       cell: (info) => <StatusBadge status={info.getValue()} />,
     }),
-    columnHelper.accessor('date', {
+    columnHelper.accessor('createdAt', {
       header: 'Date',
-      cell: ({ row, getValue }) => {
-        const value = getValue()
-        const order = row?.original
-        const normalized = normalizeOrderDate(value)
-        if (!normalized) {
-          console.warn("Invalid order date", {
-            orderId: order?.id ?? row?.id,
-            createdAt: order?.createdAt ?? row?.original?.createdAt,
-            updatedAt: order?.updatedAt ?? row?.original?.updatedAt,
-            raw: row?.original ?? value,
-          })
-        }
-
-        return <span className="text-sm">{safeFormatOrderDate(value)}</span>
-      },
+      cell: (info) => <span className="text-sm">{safeFormatOrderDate(info.getValue() ?? info.row.original?.date)}</span>,
     }),
-
     columnHelper.display({
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex items-center gap-1">
-          <button type="button" className="rounded p-1 hover:bg-gray-100" title="View" onClick={() => navigate(`/orders/${row.original.id}`)}><Eye className="h-4 w-4" /></button>
-          <button type="button" className="rounded p-1 hover:bg-gray-100" title="Invoice" onClick={() => generateInvoicePDF(row.original)}><FileDown className="h-4 w-4" /></button>
-          <Select className="h-8 w-32 text-xs" value={row.original.status} onChange={(e) => { updateStatus(row.original.id, e.target.value); toast.success('Order status updated') }}>
+          <button
+            type="button"
+            className="rounded p-1 hover:bg-gray-100"
+            title="View"
+            onClick={() => navigate(`/orders/${row.original.id}`)}
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="rounded p-1 hover:bg-gray-100"
+            title="Invoice"
+            onClick={() => generateInvoicePDF(row.original)}
+          >
+            <FileDown className="h-4 w-4" />
+          </button>
+          <Select
+            className="h-8 w-32 text-xs"
+            value={row.original.status}
+            onChange={(e) => {
+              updateStatus(row.original.id, e.target.value)
+              toast.success('Status updated')
+            }}
+          >
             <option value="pending">Pending</option>
             <option value="design_review">Design Review</option>
             <option value="printing">Printing</option>
@@ -211,60 +169,146 @@ export default function OrdersPage() {
   ]
 
   return (
-    <div className="space-y-4">
-      <PageHeader title="Orders" subtitle={`${orders.length} total orders`} actions={(
-        <>
-          <Button variant="secondary">Export CSV</Button>
-          <Button variant="secondary">Export PDF</Button>
-        </>
-      )} />
-
-      <div className="grid gap-3 md:grid-cols-5">
-        {(() => {
-          const ordersList = Array.isArray(orders) ? orders : []
-          const todayKey = new Date().toISOString().slice(0, 10)
-
-          const countByStatus = (s) => ordersList.filter((o) => o?.status === s).length
-          const countNewToday = () => ordersList.filter((o) => {
-            const createdAt = o?.createdAt
-            if (!createdAt) return false
-            // sample REST output returns ISO string
-            const iso = typeof createdAt === 'string' ? createdAt : null
-            return iso ? iso.slice(0, 10) === todayKey : false
-          }).length
-
-          const cards = [
-            ['New Today', countNewToday(), 'bg-indigo-100 text-indigo-700'],
-            ['Printing', countByStatus('printing'), 'bg-purple-100 text-purple-700'],
-            ['Shipped', countByStatus('shipped'), 'bg-blue-100 text-blue-700'],
-            ['Delivered', countByStatus('delivered'), 'bg-green-100 text-green-700'],
-            ['Cancelled', countByStatus('cancelled'), 'bg-red-100 text-red-700'],
-          ]
-
-          return cards.map((item) => (
-            <div key={item[0]} className="rounded-xl border border-gray-100 bg-white p-3">
-              <p className="text-xs text-gray-500">{item[0]}</p>
-              <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-sm font-semibold ${item[2]}`}>{item[1]}</p>
+    <div className="space-y-5">
+      {/* Header */}
+      <PageHeader
+        title="Orders"
+        subtitle={`${orders.length} total orders`}
+        actions={(
+          <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <button
+                type="button"
+                onClick={() => setView('categories')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm transition ${
+                  view === 'categories'
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Grid3X3 className="h-3.5 w-3.5" />
+                By Category
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('all')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm transition ${
+                  view === 'all'
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+                }`}
+              >
+                <List className="h-3.5 w-3.5" />
+                All Orders
+              </button>
             </div>
-          ))
-        })()}
+            <Button variant="secondary" size="sm">Export CSV</Button>
+          </div>
+        )}
+      />
+
+      {/* Stats row */}
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
+        {[
+          ['New Today',  countNewToday,          'bg-indigo-50 text-indigo-700'],
+          ['Printing',   countByStatus('printing'),  'bg-purple-50 text-purple-700'],
+          ['Shipped',    countByStatus('shipped'),   'bg-blue-50 text-blue-700'],
+          ['Delivered',  countByStatus('delivered'), 'bg-green-50 text-green-700'],
+          ['Cancelled',  countByStatus('cancelled'), 'bg-red-50 text-red-700'],
+        ].map(([label, val, cls]) => (
+          <div key={label} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+            <p className={`mt-1 inline-flex rounded-full px-2.5 py-0.5 text-sm font-semibold ${cls}`}>{val}</p>
+          </div>
+        ))}
       </div>
 
+      {/* ── Category browse view ──────────────────────────────────────────── */}
+      {view === 'categories' && (
+        <div>
+          <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+            Click a category to browse its products and orders
+          </p>
+          {categories.length === 0 && (
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-12 text-center text-sm text-gray-400 dark:border-gray-700 dark:bg-gray-800/50">
+              No categories found.
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {categories.map((cat) => {
+              const orderCount = categoryOrderCounts[cat.id] || 0
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => navigate(`/orders/category/${cat.id}`)}
+                  className="group rounded-xl border border-gray-200 bg-white text-left shadow-sm transition hover:border-primary-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+                >
+                  {/* Image / colour strip */}
+                  <div
+                    className="relative h-28 overflow-hidden rounded-t-xl"
+                    style={{ background: cat.imageUrl ? undefined : (cat.color || '#4F46E5') }}
+                  >
+                    {cat.imageUrl ? (
+                      <img
+                        src={cat.imageUrl}
+                        alt={cat.name}
+                        className="h-full w-full object-cover transition group-hover:scale-105"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                          e.currentTarget.parentElement.style.background = cat.color || '#4F46E5'
+                        }}
+                      />
+                    ) : (
+                      <ShoppingBag className="absolute inset-0 m-auto h-10 w-10 text-white/70" />
+                    )}
+                    {/* Order count badge */}
+                    <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-gray-700 shadow">
+                      {orderCount} order{orderCount !== 1 ? 's' : ''}
+                    </span>
+                  </div>
 
-      <Tabs tabs={tabs} active={statusTab} onChange={setStatusTab} />
+                  <div className="p-4">
+                    <p className="font-semibold text-gray-800 dark:text-white">{cat.name}</p>
+                    <div className="mt-1.5 flex items-center justify-between text-xs text-gray-500">
+                      <span>{cat.productCount ?? 0} product{(cat.productCount ?? 0) !== 1 ? 's' : ''}</span>
+                      <StatusBadge status={cat.status || 'active'} />
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
-      <div className="flex flex-wrap gap-3">
-        <Input className="w-72" placeholder="Search order ID or customer" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <Select className="w-52" value={payment} onChange={(e) => setPayment(e.target.value)}>
-          <option value="all">All payments</option>
-          <option value="UPI">UPI</option>
-          <option value="Card">Card</option>
-          <option value="COD">COD</option>
-          <option value="NetBanking">NetBanking</option>
-        </Select>
-      </div>
-
-      <DataTable data={filtered} columns={columns} pageSize={10} />
+      {/* ── All Orders flat table ─────────────────────────────────────────── */}
+      {view === 'all' && (
+        <div className="space-y-4">
+          <Tabs tabs={statusTabs} active={statusTab} onChange={setStatusTab} />
+          <div className="flex flex-wrap gap-3">
+            <Input
+              className="w-72"
+              placeholder="Search order ID or customer"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <Select
+              className="w-48"
+              value={payment}
+              onChange={(e) => setPayment(e.target.value)}
+            >
+              <option value="all">All payments</option>
+              <option value="UPI">UPI</option>
+              <option value="Card">Card</option>
+              <option value="COD">COD</option>
+              <option value="NetBanking">NetBanking</option>
+            </Select>
+          </div>
+          <DataTable data={filtered} columns={columns} pageSize={15} />
+        </div>
+      )}
     </div>
   )
 }

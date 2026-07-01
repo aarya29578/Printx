@@ -13,6 +13,8 @@ import BannersPage from './pages/banners/BannersPage'
 import AddEditBannerPage from './pages/banners/AddEditBannerPage'
 import OrdersPage from './pages/orders/OrdersPage'
 import OrderDetailPage from './pages/orders/OrderDetailPage'
+import OrdersByCategoryPage from './pages/orders/OrdersByCategoryPage'
+import OrdersByProductPage from './pages/orders/OrdersByProductPage'
 import CustomersPage from './pages/customers/CustomersPage'
 import CustomerDetailPage from './pages/customers/CustomerDetailPage'
 import CouponsPage from './pages/coupons/CouponsPage'
@@ -85,6 +87,8 @@ export default function App() {
             <Route path="banners/add" element={<AddEditBannerPage />} />
             <Route path="banners/:id/edit" element={<AddEditBannerPage />} />
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="orders/category/:categoryId" element={<OrdersByCategoryPage />} />
+            <Route path="orders/category/:categoryId/product/:productId" element={<OrdersByProductPage />} />
             <Route path="orders/:id" element={<OrderDetailPage />} />
             <Route path="customers" element={<CustomersPage />} />
             <Route path="customers/:id" element={<CustomerDetailPage />} />
