@@ -98,4 +98,42 @@ export const useOrdersStore = create((set) => ({
     if (!isFirebaseConfigured) return
     await updateDoc(doc(db, COLLECTION, orderId), { trackingNumber, updatedAt: serverTimestamp() })
   },
+
+  /** Assign a rider to an order. Sets status → 'assigned' and writes rider fields. */
+  assignRider: async (orderId, { riderId, riderName }, adminName = 'Admin') => {
+    set((state) => ({
+      orders: state.orders.map((order) =>
+        order.id === orderId
+          ? { ...order, assignedRiderId: riderId, assignedRiderName: riderName, status: 'assigned' }
+          : order,
+      ),
+    }))
+    if (!isFirebaseConfigured) return
+    await updateDoc(doc(db, COLLECTION, orderId), {
+      assignedRiderId: riderId,
+      assignedRiderName: riderName,
+      assignedAt: serverTimestamp(),
+      assignedBy: adminName,
+      status: 'assigned',
+      updatedAt: serverTimestamp(),
+    })
+  },
+
+  /** Remove rider assignment and revert status to 'accepted'. */
+  unassignRider: async (orderId) => {
+    set((state) => ({
+      orders: state.orders.map((order) =>
+        order.id === orderId
+          ? { ...order, assignedRiderId: null, assignedRiderName: null, status: 'accepted' }
+          : order,
+      ),
+    }))
+    if (!isFirebaseConfigured) return
+    await updateDoc(doc(db, COLLECTION, orderId), {
+      assignedRiderId: null,
+      assignedRiderName: null,
+      status: 'accepted',
+      updatedAt: serverTimestamp(),
+    })
+  },
 }))

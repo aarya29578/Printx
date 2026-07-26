@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import {
   Bell, Calculator, Grid3x3, Image, LayoutDashboard, LogOut, Package,
-  Palette, Settings, ShieldCheck, ShoppingBag, Star, Tag, Truck, Users,
+  Palette, Settings, ShieldCheck, ShoppingBag, Star, Tag, Truck, UserCheck, Users,
 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { routeItems } from '../../core/constants/routes'
@@ -18,6 +18,7 @@ const iconMap = {
   Image,
   Palette,
   ShoppingBag,
+  UserCheck,
   Users,
   Tag,
   Star,

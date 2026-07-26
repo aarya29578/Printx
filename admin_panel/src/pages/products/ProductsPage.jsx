@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
-import { Eye, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Eye, Package, Pencil, Plus, Shield, Store, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
+import Card from '../../components/ui/Card'
 import DataTable from '../../components/data/DataTable'
 import StatusBadge from '../../components/ui/Badge'
 import Select from '../../components/ui/Select'
@@ -23,9 +24,13 @@ export default function ProductsPage() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const [status, setStatus] = useState('all')
+  const [createdByFilter, setCreatedByFilter] = useState('all')
   const [deletingId, setDeletingId] = useState(null)
   const [selectedRows, setSelectedRows] = useState([])
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+
+  const adminProductCount = useMemo(() => products.filter((p) => !p.createdBy || p.createdBy === 'admin').length, [products])
+  const vendorProductCount = useMemo(() => products.filter((p) => p.createdBy === 'vendor').length, [products])
 
   const filtered = useMemo(() => products.filter((item) => {
     const name = (item.name ?? '').toString()
@@ -33,8 +38,10 @@ export default function ProductsPage() {
     const matchesQuery = name.toLowerCase().includes(query.toLowerCase()) || sku.toLowerCase().includes(query.toLowerCase())
     const matchesCategory = category === 'all' || (item.category ?? '') === category
     const matchesStatus = status === 'all' || (item.status ?? '') === status
-    return matchesQuery && matchesCategory && matchesStatus
-  }), [products, query, category, status])
+    const itemRole = item.createdBy === 'vendor' ? 'vendor' : 'admin'
+    const matchesCreatedBy = createdByFilter === 'all' || itemRole === createdByFilter
+    return matchesQuery && matchesCategory && matchesStatus && matchesCreatedBy
+  }), [products, query, category, status, createdByFilter])
 
   const categoryMap = new Map(categoryItems.map((item) => [item.id, item.name]))
   const categories = [...new Set(products.map((item) => item.category).filter(Boolean))]
@@ -74,6 +81,28 @@ export default function ProductsPage() {
       cell: (info) => <StatusBadge status={info.getValue()} />,
     }),
     columnHelper.display({
+      id: 'createdBy',
+      header: 'Created By',
+      cell: ({ row }) => {
+        const role = row.original.createdBy
+        if (role === 'vendor') {
+          const name = row.original.vendorName || 'Vendor'
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">
+              <Store className="h-3 w-3" />
+              Vendor · {name}
+            </span>
+          )
+        }
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+            <Shield className="h-3 w-3" />
+            Admin
+          </span>
+        )
+      },
+    }),
+    columnHelper.display({
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => (
@@ -102,6 +131,36 @@ export default function ProductsPage() {
         )}
       />
 
+      <div className="mb-5 grid grid-cols-3 gap-4">
+        <Card className="flex items-center gap-4 p-4">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-600 dark:bg-slate-700">
+            <Package className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Total Products</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{products.length}</p>
+          </div>
+        </Card>
+        <Card className="flex items-center gap-4 p-4">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/30">
+            <Shield className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Admin Products</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{adminProductCount}</p>
+          </div>
+        </Card>
+        <Card className="flex items-center gap-4 p-4">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-100 text-violet-600 dark:bg-violet-900/30">
+            <Store className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Vendor Products</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{vendorProductCount}</p>
+          </div>
+        </Card>
+      </div>
+
       <div className="mb-5 flex flex-wrap gap-3">
         <Input className="w-72" placeholder="Search products" value={query} onChange={(e) => setQuery(e.target.value)} />
         <Select value={category} onChange={(e) => setCategory(e.target.value)} className="w-52">
@@ -113,6 +172,11 @@ export default function ProductsPage() {
           <option value="active">Active</option>
           <option value="draft">Draft</option>
           <option value="out_of_stock">Out of Stock</option>
+        </Select>
+        <Select value={createdByFilter} onChange={(e) => setCreatedByFilter(e.target.value)} className="w-44">
+          <option value="all">All Sources</option>
+          <option value="admin">Admin</option>
+          <option value="vendor">Vendor</option>
         </Select>
         {selectedRows.length > 0 && (
           <>

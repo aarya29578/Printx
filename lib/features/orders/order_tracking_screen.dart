@@ -136,14 +136,18 @@ class OrderTrackingScreen extends StatelessWidget {
   String _statusLabel(OrderStatus status) {
     return switch (status) {
       OrderStatus.pending => 'Order Pending',
+      OrderStatus.accepted => 'Order Accepted',
       OrderStatus.confirmed => 'Order Confirmed',
       OrderStatus.designApproved => 'Design Approved',
       OrderStatus.printing => 'Being Printed',
       OrderStatus.qualityCheck => 'Quality Check',
       OrderStatus.dispatched => 'Dispatched',
+      OrderStatus.assigned => 'Rider Assigned',
+      OrderStatus.pickedUp => 'Picked Up',
       OrderStatus.outForDelivery => 'Out for Delivery',
       OrderStatus.delivered => 'Delivered',
-      OrderStatus.cancelled => 'Cancelled',
+      OrderStatus.cancelled => 'Order Cancelled',
+      OrderStatus.rejected => 'Order Cancelled',
     };
   }
 

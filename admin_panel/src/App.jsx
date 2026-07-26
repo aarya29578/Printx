@@ -25,6 +25,7 @@ import DeliverySettingsPage from './pages/delivery/DeliverySettingsPage'
 import PricingRulesPage from './pages/pricing/PricingRulesPage'
 import AdminUsersPage from './pages/adminUsers/AdminUsersPage'
 import GeneralSettingsPage from './pages/settings/GeneralSettingsPage'
+import RidersPage from './pages/riders/RidersPage'
 import { useProductsStore } from './store/productsStore'
 import { useOrdersStore } from './store/ordersStore'
 import { useCategoriesStore } from './store/categoriesStore'
@@ -91,6 +92,7 @@ export default function App() {
             <Route path="orders/category/:categoryId" element={<OrdersByCategoryPage />} />
             <Route path="orders/category/:categoryId/product/:productId" element={<OrdersByProductPage />} />
             <Route path="orders/:id" element={<OrderDetailPage />} />
+            <Route path="riders" element={<RidersPage />} />
             <Route path="customers" element={<CustomersPage />} />
             <Route path="customers/:id" element={<CustomerDetailPage />} />
             <Route path="coupons" element={<CouponsPage />} />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { getDoc, doc } from 'firebase/firestore'
+import { getDoc, doc, onSnapshot } from 'firebase/firestore'
 import {
   ChevronRight,
   Check,
@@ -18,6 +18,9 @@ import {
   ClipboardList,
   MessageSquare,
   Clock,
+  UserCheck,
+  Wifi,
+  WifiOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Card from '../../components/ui/Card'
@@ -26,6 +29,7 @@ import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
 import StatusBadge from '../../components/ui/Badge'
 import { useOrdersStore } from '../../store/ordersStore'
+import { useRidersStore } from '../../store/ridersStore'
 import { db, isFirebaseConfigured } from '../../services/firebase'
 import { formatINR } from '../../core/utils/formatCurrency'
 import { safeFormatOrderDate, safeFormatOrderDateTime } from '../../core/utils/formatOrderDate'
@@ -44,6 +48,12 @@ const TIMELINE_STAGES = [
 ]
 
 const STATUS_ORDER = TIMELINE_STAGES.map((s) => s.key)
+
+// Statuses that allow rider assignment
+const ASSIGNABLE_STATUSES = [
+  'accepted', 'confirmed', 'design_review', 'printing',
+  'quality_check', 'shipped', 'dispatched',
+]
 
 // If the order already has a timeline array use it; otherwise derive from status.
 function resolveTimeline(order) {
@@ -88,7 +98,8 @@ function SummaryRow({ label, value }) {
 export default function OrderDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { orders, updateStatus, addAdminNote, updateTrackingNumber } = useOrdersStore()
+  const { orders, updateStatus, addAdminNote, updateTrackingNumber, assignRider, unassignRider } = useOrdersStore()
+  const { riders, loadRiders } = useRidersStore()
 
   const [note, setNote] = useState('')
   const [tracking, setTracking] = useState('')
@@ -96,6 +107,11 @@ export default function OrderDetailPage() {
   const [customerProfile, setCustomerProfile] = useState(null)
   const [savingNote, setSavingNote] = useState(false)
   const [savingTracking, setSavingTracking] = useState(false)
+  // Inline rider selection — replaces the modal approach
+  const [selectedRiderId, setSelectedRiderId] = useState('')
+  const [assigningRider, setAssigningRider] = useState(false)
+  // Live Firestore subscription for this specific order document
+  const [liveOrder, setLiveOrder] = useState(null)
 
   const order = orders.find((o) => o.id === id)
 
@@ -107,10 +123,26 @@ export default function OrderDetailPage() {
       .catch(() => {})
   }, [order?.userId])
 
+  // Load riders list
+  useEffect(() => { loadRiders() }, [loadRiders])
+
   // Pre-fill tracking input if already set
   useEffect(() => {
     if (order?.trackingNumber) setTracking(order.trackingNumber)
   }, [order?.trackingNumber])
+
+  // Direct real-time subscription to this order document.
+  // This ensures the Assign Rider section updates instantly when the vendor
+  // accepts — even if the admin had the page open before acceptance.
+  useEffect(() => {
+    if (!isFirebaseConfigured || !id) return
+    const unsub = onSnapshot(
+      doc(db, 'orders', id),
+      (snap) => { if (snap.exists()) setLiveOrder({ id: snap.id, ...snap.data() }) },
+      () => {},
+    )
+    return () => unsub()
+  }, [id])
 
   if (!order) {
     return (
@@ -122,12 +154,62 @@ export default function OrderDetailPage() {
     )
   }
 
+  // currentOrder uses the live Firestore document when available, falling back
+  // to the store entry. This is used for all status/assignment checks so the
+  // Assign Rider section reflects Firestore state in real time.
+  const currentOrder = liveOrder ?? order
+
   const timeline        = resolveTimeline(order)
   const customerName    = customerProfile?.fullName    || order.userName       || '—'
   const customerEmail   = customerProfile?.email       || order.userEmail      || '—'
   const customerPhone   = customerProfile?.phoneNumber || order.userPhone      || '—'
   const customerAddress = customerProfile?.address     || order.deliveryAddress || '—'
   const customerImage   = customerProfile?.profileImage ?? null
+
+  const isReadyToAssign = (
+    currentOrder.vendorAccepted === true ||
+    ASSIGNABLE_STATUSES.includes(currentOrder.status)
+  )
+
+  // Assign or re-assign a rider
+  const handleAssignRider = async () => {
+    if (!selectedRiderId) { toast.error('Please select a rider'); return }
+    const riderDoc = riders.find((r) => r.id === selectedRiderId)
+    if (!riderDoc) { toast.error('Rider not found'); return }
+    setAssigningRider(true)
+    try {
+      await assignRider(currentOrder.id, {
+        riderId:    riderDoc.id,
+        riderName:  riderDoc.fullName || riderDoc.id,
+      })
+      toast.success(`Assigned to ${riderDoc.fullName || 'rider'}`)
+      setSelectedRiderId('')
+    } catch {
+      toast.error('Failed to assign rider')
+    } finally {
+      setAssigningRider(false)
+    }
+  }
+
+  const activeRiders = riders
+    .filter((r) => !r.status || r.status === 'active')
+    .sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0))
+
+  const riderSelectJSX = (
+    <select
+      value={selectedRiderId}
+      onChange={(e) => setSelectedRiderId(e.target.value)}
+      className="h-10 w-full rounded-xl border border-gray-200 px-3 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+    >
+      <option value="">Select a rider…</option>
+      {activeRiders.map((rider) => (
+        <option key={rider.id} value={rider.id}>
+          {rider.online ? '● ' : '○ '}{rider.fullName || rider.id}
+          {rider.vehicleType ? ` · ${rider.vehicleType}` : ''}
+        </option>
+      ))}
+    </select>
+  )
 
   return (
     <div className="space-y-5">
@@ -143,7 +225,7 @@ export default function OrderDetailPage() {
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Order #{order.id}</h1>
-            <StatusBadge status={order.status} />
+            <StatusBadge status={currentOrder.status} />
           </div>
           <p className="mt-1 text-sm text-gray-500">
             Placed on {safeFormatOrderDateTime(order.createdAt ?? order.date)}
@@ -176,7 +258,6 @@ export default function OrderDetailPage() {
               <h3 className="font-semibold">Customer Information</h3>
             </div>
             <div className="flex gap-4">
-              {/* Avatar */}
               {customerImage ? (
                 <img
                   src={customerImage}
@@ -217,7 +298,6 @@ export default function OrderDetailPage() {
                   className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50"
                 >
                   <div className="flex gap-3">
-                    {/* Product image */}
                     {item.productImage ? (
                       <img
                         src={item.productImage}
@@ -245,24 +325,17 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
 
-                  {/* Customer instructions */}
                   {item.customerInstructions && (
                     <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 p-3 dark:border-amber-800/30 dark:bg-amber-900/20">
-                      <p className="mb-1 text-xs font-semibold text-amber-700 dark:text-amber-400">
-                        Customer Instructions
-                      </p>
+                      <p className="mb-1 text-xs font-semibold text-amber-700 dark:text-amber-400">Customer Instructions</p>
                       <p className="text-sm text-amber-900 dark:text-amber-200">{item.customerInstructions}</p>
                     </div>
                   )}
 
-                  {/* Uploaded design */}
                   {item.customDesignUrl && (
                     <div className="mt-3">
-                      <p className="mb-2 text-xs font-semibold text-gray-600 dark:text-gray-400">
-                        Uploaded Design
-                      </p>
+                      <p className="mb-2 text-xs font-semibold text-gray-600 dark:text-gray-400">Uploaded Design</p>
                       <div className="flex items-start gap-3">
-                        {/* Thumbnail with zoom */}
                         <button
                           type="button"
                           className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-700"
@@ -280,7 +353,6 @@ export default function OrderDetailPage() {
                           </div>
                         </button>
 
-                        {/* Action buttons */}
                         <div className="flex flex-col gap-1.5">
                           {item.customDesignFileName && (
                             <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[180px] truncate">
@@ -330,7 +402,6 @@ export default function OrderDetailPage() {
             </div>
 
             <div className="relative pl-3">
-              {/* Vertical connector */}
               <div className="absolute left-6 top-3 h-[calc(100%-1.5rem)] w-px bg-gray-200 dark:bg-gray-700" />
 
               <div className="space-y-5">
@@ -384,10 +455,7 @@ export default function OrderDetailPage() {
                 <p className="text-sm text-gray-400 dark:text-gray-500">No notes yet.</p>
               )}
               {(order.adminNotes || []).map((entry, idx) => (
-                <div
-                  key={idx}
-                  className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800"
-                >
+                <div key={idx} className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
                   {typeof entry === 'string' ? (
                     <p className="text-gray-800 dark:text-gray-200">{entry}</p>
                   ) : (
@@ -445,7 +513,7 @@ export default function OrderDetailPage() {
               <SummaryRow label="Order ID" value={<span className="font-mono text-xs">{order.id}</span>} />
               <SummaryRow label="Date"     value={safeFormatOrderDate(order.createdAt ?? order.date)} />
               <SummaryRow label="Payment"  value={order.payment || '—'} />
-              <SummaryRow label="Status"   value={<StatusBadge status={order.status} />} />
+              <SummaryRow label="Status"   value={<StatusBadge status={currentOrder.status} />} />
               <hr className="border-gray-100 dark:border-gray-700" />
               <SummaryRow
                 label="Total"
@@ -466,13 +534,11 @@ export default function OrderDetailPage() {
             </div>
 
             <div className="space-y-3">
-              {/* Address */}
               <div className="flex items-start gap-2 text-sm">
                 <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
                 <p className="text-gray-600 dark:text-gray-400">{order.deliveryAddress || customerAddress || '—'}</p>
               </div>
 
-              {/* Current tracking number */}
               {order.trackingNumber && (
                 <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
                   <p className="text-xs text-gray-500">Current Tracking Number</p>
@@ -482,7 +548,6 @@ export default function OrderDetailPage() {
                 </div>
               )}
 
-              {/* Update tracking */}
               <div className="flex gap-2">
                 <Input
                   className="flex-1"
@@ -512,24 +577,116 @@ export default function OrderDetailPage() {
             </div>
           </Card>
 
-          {/* Status Update */}
+          {/* Update Status */}
           <Card>
             <h3 className="mb-3 font-semibold">Update Status</h3>
             <select
               className="h-10 w-full rounded-xl border border-gray-200 px-3 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-              value={order.status}
+              value={currentOrder.status}
               onChange={(e) => {
                 updateStatus(order.id, e.target.value)
                 toast.success('Order status updated')
               }}
             >
               <option value="pending">Pending</option>
+              <option value="accepted">Accepted (by Vendor)</option>
               <option value="design_review">Design Review</option>
               <option value="printing">Printing</option>
+              <option value="quality_check">Quality Check</option>
               <option value="shipped">Shipped</option>
+              <option value="assigned">Assigned to Rider</option>
+              <option value="picked_up">Picked Up</option>
+              <option value="out_for_delivery">Out for Delivery</option>
               <option value="delivered">Delivered</option>
               <option value="cancelled">Cancelled</option>
             </select>
+          </Card>
+
+          {/* ── Assign Rider ─────────────────────────────────────────────── */}
+          {/*
+            Always rendered. Shows:
+            - If rider already assigned: rider info + inline re-assign form
+            - If ready to assign (vendor accepted): inline select + Assign Rider button
+            - Otherwise: waiting message
+          */}
+          <Card>
+            <div className="mb-3 flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-primary-600" />
+              <h3 className="font-semibold">
+                {currentOrder.assignedRiderId ? 'Delivery Rider' : 'Assign Rider'}
+              </h3>
+            </div>
+
+            {currentOrder.assignedRiderId ? (
+              /* ── Rider already assigned ── */
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 rounded-xl bg-green-50 p-3 dark:bg-green-900/20">
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-green-600 font-bold text-white text-sm">
+                    {(currentOrder.assignedRiderName?.[0] || '?').toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-gray-800 dark:text-gray-100 truncate">
+                      {currentOrder.assignedRiderName || currentOrder.assignedRiderId}
+                    </p>
+                    <p className="text-xs text-gray-500">Assigned rider</p>
+                  </div>
+                  {(() => {
+                    const riderDoc = riders.find((r) => r.id === currentOrder.assignedRiderId)
+                    return riderDoc?.online
+                      ? <span className="flex items-center gap-1 text-xs text-green-600"><Wifi className="h-3 w-3" />Online</span>
+                      : <span className="flex items-center gap-1 text-xs text-gray-400"><WifiOff className="h-3 w-3" />Offline</span>
+                  })()}
+                </div>
+
+                <p className="text-xs font-medium text-gray-500">Reassign Rider</p>
+                {riderSelectJSX}
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    size="sm"
+                    loading={assigningRider}
+                    disabled={!selectedRiderId}
+                    onClick={handleAssignRider}
+                  >
+                    Update Rider
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      try { await unassignRider(currentOrder.id); toast.success('Rider unassigned') }
+                      catch { toast.error('Failed to unassign') }
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            ) : isReadyToAssign ? (
+              /* ── Vendor accepted — show inline assignment form ── */
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-amber-600">
+                  Vendor accepted · ready to assign a rider
+                </p>
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400">
+                  Select Rider
+                </label>
+                {riderSelectJSX}
+                <Button
+                  className="w-full"
+                  loading={assigningRider}
+                  disabled={!selectedRiderId}
+                  onClick={handleAssignRider}
+                >
+                  Assign Rider
+                </Button>
+              </div>
+            ) : (
+              /* ── Pending vendor acceptance ── */
+              <p className="text-sm text-gray-400">
+                Waiting for vendor to accept before assigning a rider.
+              </p>
+            )}
           </Card>
         </div>
       </div>

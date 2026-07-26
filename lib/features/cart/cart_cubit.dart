@@ -85,6 +85,7 @@ class CartCubit extends Cubit<CartState> {
       customDesignUrl: customDesignUrl,
       customDesignFileName: customDesignFileName,
       customerInstructions: customerInstructions,
+      vendorId: product.vendorId,
     );
     emit(CartLoaded(
       items: [...current.items, item],
@@ -286,6 +287,8 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         'customDesignUrl': ci.customDesignUrl,
         'customDesignFileName': ci.customDesignFileName,
         'customerInstructions': ci.customerInstructions ?? '',
+        if (ci.vendorId != null && ci.vendorId!.isNotEmpty)
+          'vendorId': ci.vendorId,
       });
     }
 

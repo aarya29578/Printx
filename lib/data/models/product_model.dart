@@ -18,6 +18,7 @@ class Product extends Equatable {
   final List<String> tags;
   final List<int> quantities;
   final String? badge;
+  final String? vendorId;
 
   const Product({
     required this.id,
@@ -37,6 +38,7 @@ class Product extends Equatable {
     this.tags = const [],
     this.quantities = const [50, 100, 250, 500, 1000],
     this.badge,
+    this.vendorId,
   });
 
   Product copyWith({
@@ -57,6 +59,7 @@ class Product extends Equatable {
     List<String>? tags,
     List<int>? quantities,
     String? badge,
+    String? vendorId,
   }) {
     return Product(
       id: id ?? this.id,
@@ -76,6 +79,7 @@ class Product extends Equatable {
       tags: tags ?? this.tags,
       quantities: quantities ?? this.quantities,
       badge: badge ?? this.badge,
+      vendorId: vendorId ?? this.vendorId,
     );
   }
 

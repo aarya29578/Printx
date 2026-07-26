@@ -7,6 +7,7 @@ export const routeItems = [
   ] },
   { group: 'COMMERCE', items: [
     { label: 'Orders', path: '/orders', icon: 'ShoppingBag', badge: 'pendingOrders' },
+    { label: 'Riders', path: '/riders', icon: 'UserCheck' },
     { label: 'Customers', path: '/customers', icon: 'Users' },
     { label: 'Coupons & Offers', path: '/coupons', icon: 'Tag' },
     { label: 'Reviews', path: '/reviews', icon: 'Star', badge: 'pendingReviews' },

@@ -63,8 +63,10 @@ export default function OrdersPage() {
   const statusTabs = [
     { label: `All (${orders.length})`, value: 'all' },
     { label: `Pending (${countByStatus('pending')})`, value: 'pending' },
+    { label: `Ready to Assign (${countByStatus('accepted')})`, value: 'accepted' },
     { label: `Design Review (${countByStatus('design_review')})`, value: 'design_review' },
     { label: `Printing (${countByStatus('printing')})`, value: 'printing' },
+    { label: `Assigned (${countByStatus('assigned')})`, value: 'assigned' },
     { label: `Shipped (${countByStatus('shipped')})`, value: 'shipped' },
     { label: `Delivered (${countByStatus('delivered')})`, value: 'delivered' },
     { label: `Cancelled (${countByStatus('cancelled')})`, value: 'cancelled' },

@@ -125,6 +125,8 @@ export const useProductsStore = create((set, get) => ({
       id,
       imageUrl: imageUrl || productData.imageUrl || 'https://picsum.photos/seed/new-product/400/300',
       createdAt: product.createdAt || new Date().toISOString(),
+      createdBy: productData.createdBy || 'admin',
+      createdByRole: productData.createdByRole || 'admin',
     }
     const nextSafe = omitUndefined(next)
     set((state) => ({ products: [nextSafe, ...state.products] }))

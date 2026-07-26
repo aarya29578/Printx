@@ -144,6 +144,7 @@ class CartItem extends Equatable {
   final String? size;
   final String? specs;
   final String? designId;
+  final String? vendorId;
 
   const CartItem({
     required this.id,
@@ -159,6 +160,7 @@ class CartItem extends Equatable {
     this.size,
     this.specs,
     this.designId,
+    this.vendorId,
   });
 
   int get totalPrice => basePrice * (quantity ~/ 100).clamp(1, 100);
@@ -177,6 +179,7 @@ class CartItem extends Equatable {
     String? customDesignUrl,
     String? customDesignFileName,
     String? customerInstructions,
+    String? vendorId,
   }) {
     return CartItem(
       id: id ?? this.id,
@@ -192,6 +195,7 @@ class CartItem extends Equatable {
       customDesignUrl: customDesignUrl ?? this.customDesignUrl,
       customDesignFileName: customDesignFileName ?? this.customDesignFileName,
       customerInstructions: customerInstructions ?? this.customerInstructions,
+      vendorId: vendorId ?? this.vendorId,
     );
   }
 

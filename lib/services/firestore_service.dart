@@ -233,6 +233,14 @@ class FirestoreService {
 
     final collectionPath = orderRef.parent.path;
 
+    // Collect unique vendorIds from items for server-side vendor order queries
+    final vendorIds = items
+        .map((i) => i['vendorId'] as String?)
+        .where((v) => v != null && v.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
+
     final payload = <String, dynamic>{
       'orderId': createdOrderId,
       'userId': userId,
@@ -243,6 +251,7 @@ class FirestoreService {
       'deliveryAddress': deliveryAddress,
       'items': items,
       'totalAmount': totalAmount,
+      if (vendorIds.isNotEmpty) 'vendorIds': vendorIds,
     };
 
     print('🧾 [ORDER CREATE] collectionPath=$collectionPath');
@@ -346,6 +355,8 @@ class FirestoreService {
 
   static OrderStatus _orderStatusFromText(String status) {
     switch (status.toLowerCase()) {
+      case 'accepted':
+        return OrderStatus.accepted;
       case 'confirmed':
         return OrderStatus.confirmed;
       case 'design_approved':
@@ -359,12 +370,19 @@ class FirestoreService {
       case 'shipped':
       case 'dispatched':
         return OrderStatus.dispatched;
+      case 'assigned':
+        return OrderStatus.assigned;
+      case 'picked_up':
+      case 'pickedup':
+        return OrderStatus.pickedUp;
       case 'out_for_delivery':
         return OrderStatus.outForDelivery;
       case 'delivered':
         return OrderStatus.delivered;
       case 'cancelled':
         return OrderStatus.cancelled;
+      case 'rejected':
+        return OrderStatus.rejected;
       case 'pending':
       default:
         return OrderStatus.pending;
@@ -409,6 +427,7 @@ class FirestoreService {
       tags: _stringList(data['tags']),
       quantities: _intList(data['quantities']),
       badge: data['badge'] as String?,
+      vendorId: data['vendorId'] as String?,
     );
   }
 

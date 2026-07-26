@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Development rules: enough for the current mock-auth admin panel and the
+    // Flutter app to read/write the shared collections immediately.
+    match /products/{id} {
+      allow read, write: if true;
+    }
+
+    match /categories/{id} {
+      allow read, write: if true;
+    }
+
+    match /orders/{id} {
+      allow read, write: if true;
+    }
+
+    match /users/{uid} {
+      allow read, write: if true;
+    }
+
+    match /banners/{id} {
+      allow read, write: if true;
+    }
+
+    match /settings/{id} {
+      allow read, write: if true;
+    }
+  }
+}

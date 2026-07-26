@@ -1,0 +1,68 @@
+name: printx_rider
+description: PrintX Rider app for delivery partners
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_bloc: ^8.1.3
+  equatable: ^2.0.5
+
+  # Navigation
+  go_router: ^12.1.1
+
+  # UI & Animations
+  animate_do: ^3.3.4
+  lottie: ^2.7.0
+  shimmer: ^3.0.0
+  flutter_staggered_animations: ^1.1.1
+  smooth_page_indicator: ^1.1.0
+  cached_network_image: ^3.3.0
+  flutter_svg: ^2.0.9
+  badges: ^3.1.2
+  percent_indicator: ^4.2.3
+  timeline_tile: ^2.0.0
+  pinput: ^3.0.1
+  google_fonts: ^6.1.0
+
+  # Storage
+  shared_preferences: ^2.2.2
+  flutter_secure_storage: ^9.0.0
+  hive_flutter: ^1.1.0
+
+  # Network
+  dio: ^5.4.0
+
+  # Firebase
+  firebase_core: ^3.15.1
+  cloud_firestore: ^5.6.11
+  firebase_auth: ^5.6.2
+  firebase_storage: ^12.4.10
+
+  # Image handling
+  image_picker: ^1.0.7
+
+  # Utils
+  intl: ^0.19.0
+  uuid: ^4.2.2
+  url_launcher: ^6.2.2
+  timeago: ^3.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/animations/

@@ -2,14 +2,18 @@ import 'package:equatable/equatable.dart';
 
 enum OrderStatus {
   pending,
+  accepted,       // vendor accepted
   confirmed,
   designApproved,
   printing,
   qualityCheck,
   dispatched,
+  assigned,       // rider assigned
+  pickedUp,       // rider picked up
   outForDelivery,
   delivered,
-  cancelled
+  cancelled,
+  rejected,       // vendor rejected
 }
 
 class OrderItem extends Equatable {
