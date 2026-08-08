@@ -30,6 +30,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import ImageUploadBox from '../../components/forms/ImageUploadBox'
 import { useCategoriesStore } from '../../store/categoriesStore'
 
 const iconOptions = [
@@ -59,14 +60,18 @@ function SortableCategory({ item, onEdit, onDelete, onAddProduct, onViewDetails 
       <button
         type="button"
         onClick={onViewDetails}
-        className="relative grid h-20 w-full place-items-center rounded-t-xl text-white transition hover:opacity-90"
+        className="relative grid h-20 w-full place-items-center overflow-hidden rounded-t-xl text-white transition hover:opacity-90"
         style={{ background: item.color }}
         title="Click to view products in this category"
       >
         <span className="absolute left-2 top-2 rounded bg-white/20 p-1 text-white" {...attributes} {...listeners}>
           <GripVertical className="h-4 w-4" />
         </span>
-        <Icon className="h-7 w-7" />
+        {item.imageUrl ? (
+          <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+        ) : (
+          <Icon className="h-7 w-7" />
+        )}
       </button>
       <div className="p-4">
         <p className="font-medium dark:text-white cursor-pointer hover:text-primary-600" onClick={onViewDetails}>
@@ -93,26 +98,38 @@ export default function CategoriesPage() {
   const [open, setOpen] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', color: '#4F46E5', status: 'active', productCount: 0, icon: 'credit-card' })
+  const [form, setForm] = useState({ name: '', color: '#4F46E5', status: 'active', productCount: 0, icon: 'tag', imageUrl: '' })
 
   useEffect(() => {
     setItems(categories)
   }, [categories])
 
+  const [tempCategoryId, setTempCategoryId] = useState('')
+  const [imageUploading, setImageUploading] = useState(false)
+
+  const getCategoryId = () => editing?.id || tempCategoryId
+
+  const handleCategoryImage = (uploadedUrl) => {
+    setForm((prev) => ({ ...prev, imageUrl: uploadedUrl || '' }))
+  }
+
   const openCreate = () => {
     setEditing(null)
-    setForm({ name: '', color: '#4F46E5', status: 'active', productCount: 0, icon: 'credit-card' })
+    setTempCategoryId(`cat-${Date.now()}`)
+    setForm({ name: '', color: '#4F46E5', status: 'active', productCount: 0, icon: 'tag', imageUrl: '' })
     setOpen(true)
   }
 
   const openEdit = (item) => {
     setEditing(item)
+    setTempCategoryId('')
     setForm({
       name: item.name,
       color: item.color,
       status: item.status,
       productCount: item.productCount,
-      icon: item.icon || 'credit-card',
+      icon: item.icon || 'tag',
+      imageUrl: item.imageUrl || '',
     })
     setOpen(true)
   }
@@ -123,14 +140,18 @@ export default function CategoriesPage() {
       return
     }
 
+    const payload = {
+      ...form,
+      productCount: Number(form.productCount) || 0,
+    }
+
     if (editing) {
-      updateCategory(editing.id, { ...form, productCount: Number(form.productCount) || 0 })
+      updateCategory(editing.id, payload)
       toast.success('Category updated')
     } else {
       addCategory({
-        id: `cat-${Date.now()}`,
-        ...form,
-        productCount: Number(form.productCount) || 0,
+        id: tempCategoryId || `cat-${Date.now()}`,
+        ...payload,
       })
       toast.success('Category created')
     }
@@ -189,7 +210,7 @@ export default function CategoriesPage() {
         footer={(
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={onSubmit}>{editing ? 'Save Changes' : 'Create Category'}</Button>
+            <Button onClick={onSubmit} disabled={imageUploading}>{editing ? 'Save Changes' : 'Create Category'}</Button>
           </div>
         )}
       >
@@ -212,23 +233,16 @@ export default function CategoriesPage() {
             </div>
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium">Icon</label>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {iconOptions.map(({ value, label, Icon }) => {
-                const selected = form.icon === value
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setForm((p) => ({ ...p, icon: value }))}
-                    className={`flex flex-col items-center gap-2 rounded-xl border p-3 text-xs transition ${selected ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'}`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span>{label}</span>
-                  </button>
-                )
-              })}
-            </div>
+            <label className="mb-1 block text-sm font-medium">Category Image</label>
+            <ImageUploadBox
+              label="Upload category image"
+              hint="Optional image for category card. Leave empty to use icon fallback."
+              categoryId={getCategoryId()}
+              currentImage={form.imageUrl}
+              onChange={handleCategoryImage}
+              onUploadStateChange={setImageUploading}
+            />
+            {imageUploading && <p className="mt-2 text-sm text-gray-500">Uploading image...</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Product Count</label>

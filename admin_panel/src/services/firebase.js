@@ -14,20 +14,38 @@ const firebaseConfig = {
 
 const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId']
 
-export const isFirebaseConfigured = requiredKeys.every((key) => Boolean(firebaseConfig[key]))
+// Determine whether env has all required keys at build time
+let isFirebaseConfigured = requiredKeys.every((key) => Boolean(firebaseConfig[key]))
 
 let app = null
 let auth = null
 let db = null
 let storage = null
 
-if (isFirebaseConfigured) {
-  app = initializeApp(firebaseConfig)
-  auth = getAuth(app)
-  db = getFirestore(app)
-  storage = getStorage(app)
+// Try to initialize Firebase if minimal config is present. This makes the
+// admin panel more resilient in dev where env injection or HMR timing may
+// cause the initial check to be false. We avoid hardcoding secrets here;
+// we only use values from import.meta.env which are already part of the
+// app environment.
+const hasMinimalConfig = Boolean(firebaseConfig.projectId && firebaseConfig.apiKey && firebaseConfig.appId)
+if (hasMinimalConfig) {
+  try {
+    app = initializeApp(firebaseConfig)
+    auth = getAuth(app)
+    db = getFirestore(app)
+    storage = getStorage(app)
+    isFirebaseConfigured = Boolean(db)
+  } catch (err) {
+    // Initialization failed; keep using local mock data but log for debugging
+    // (do not print secrets)
+    // eslint-disable-next-line no-console
+    console.warn('Firebase initialization failed:', err?.message || err)
+    isFirebaseConfigured = false
+  }
 } else {
+  // If minimal config is not present, warn once.
+  // eslint-disable-next-line no-console
   console.warn('Firebase is not configured. Using local mock data until env vars are provided.')
 }
 
-export { app, auth, db, storage, serverTimestamp }
+export { isFirebaseConfigured, app, auth, db, storage, serverTimestamp }

@@ -318,9 +318,13 @@ export default function OrderDetailPage() {
                         {item.finish   && <span>Finish: <strong className="text-gray-700 dark:text-gray-300">{item.finish}</strong></span>}
                         {item.quantity && <span>Qty: <strong className="text-gray-700 dark:text-gray-300">{item.quantity}</strong></span>}
                         {item.price    && <span>Unit: <strong className="text-gray-700 dark:text-gray-300">{formatINR(item.price)}</strong></span>}
-                        {item.quantity && item.price && (
-                          <span>Subtotal: <strong className="text-gray-700 dark:text-gray-300">{formatINR(item.quantity * item.price)}</strong></span>
-                        )}
+                        {item.quantity && item.price && (() => {
+                          const qty = item.quantity || 1
+                          const unit = item.price
+                          const groups = Math.max(1, Math.floor(qty / 100))
+                          const lineTotal = unit * groups
+                          return <span>Subtotal: <strong className="text-gray-700 dark:text-gray-300">{formatINR(lineTotal)}</strong></span>
+                        })()}
                       </div>
                     </div>
                   </div>

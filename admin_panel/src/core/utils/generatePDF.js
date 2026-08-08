@@ -2,6 +2,18 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
 export function generateInvoicePDF(order) {
+  // Normalize order shape: support both Firestore-style and store-style objects.
+  const normalizedOrder = Object.assign({}, order)
+  if (!normalizedOrder.id) normalizedOrder.id = order.orderId || order.id || (order.name && order.name.split('/').pop())
+  normalizedOrder.customer = normalizedOrder.customer || {
+    name: order.userName || order.userEmail || '—',
+    email: order.userEmail || '',
+    phone: order.userPhone || '',
+  }
+  normalizedOrder.address = normalizedOrder.address || order.deliveryAddress || order.address || ''
+  normalizedOrder.date = normalizedOrder.date || order.createdAt || order.date || new Date().toISOString()
+  normalizedOrder.items = Array.isArray(order.items) ? order.items : (order.items && order.items.arrayValue ? (order.items.arrayValue.values || []).map(v => v.mapValue.fields) : order.items || [])
+  order = normalizedOrder
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   doc.setFillColor(79, 70, 229)
@@ -48,17 +60,30 @@ export function generateInvoicePDF(order) {
   doc.text(dateText, 120, 59)
   doc.text(dateText, 165, 59)
 
+  // Build table rows from order.items when available
+  const rows = []
+  if (Array.isArray(order.items) && order.items.length > 0) {
+    for (let i = 0; i < order.items.length; i++) {
+      const it = order.items[i]
+      const qty = Number(it.quantity || it.qty || 1)
+      const basePrice = Number(it.price || it.basePrice || 0)
+      // basePrice is charged per 100 units (group). Minimum 1 group.
+      const groups = Math.max(1, Math.floor(qty / 100))
+      const lineTotal = basePrice * groups
+      const specs = [it.size || '', it.finish || ''].filter(Boolean).join(' · ')
+      rows.push([String(i + 1), it.productName || it.name || '—', specs, String(qty), `Rs. ${basePrice}`, `Rs. ${lineTotal}`])
+    }
+  } else {
+    // Fallback to previous single-product layout
+    const qty = Number(order.qty || 1)
+    const unit = Number((order.amount || 0) * 0.82 / Math.max(qty, 1))
+    rows.push(['1', order.product?.name || '—', order.product?.specs || '', String(qty), `Rs. ${unit}`, `Rs. ${(order.amount || 0) * 0.82}`])
+  }
+
   autoTable(doc, {
     startY: 90,
     head: [['#', 'Product', 'Specifications', 'Qty', 'Unit Price', 'Total']],
-    body: [[
-      '1',
-      order.product.name,
-      order.product.specs,
-      order.qty,
-      `Rs. ${(order.amount * 0.82 / order.qty).toFixed(0)}`,
-      `Rs. ${(order.amount * 0.82).toFixed(0)}`,
-    ]],
+    body: rows,
     styles: { fontSize: 10, cellPadding: 6 },
     headStyles: {
       fillColor: [79, 70, 229],
@@ -78,9 +103,20 @@ export function generateInvoicePDF(order) {
   })
 
   const finalY = doc.lastAutoTable.finalY + 8
-  const subtotal = order.amount * 0.82
-  const gst = order.amount * 0.18
-  const total = order.amount
+  // Calculate totals from items when present, else fallback
+  let subtotal = 0
+  if (Array.isArray(order.items) && order.items.length > 0) {
+    subtotal = order.items.reduce((s, it) => {
+      const qty = Number(it.quantity || it.qty || 1)
+      const basePrice = Number(it.price || it.basePrice || 0)
+      const groups = Math.max(1, Math.floor(qty / 100))
+      return s + basePrice * groups
+    }, 0)
+  } else {
+    subtotal = Number(order.amount || 0) * 0.82
+  }
+  const gst = Math.round(subtotal * 0.18)
+  const total = subtotal + gst
 
   doc.setFontSize(10)
   doc.setTextColor(107, 114, 128)
@@ -112,6 +148,18 @@ export function generateInvoicePDF(order) {
   doc.text('Thank you for your business with PrintX!', 105, 275, { align: 'center' })
   doc.text('For support: admin@printx.in | support.printx.in', 105, 280, { align: 'center' })
   doc.text('This is a computer-generated invoice.', 105, 285, { align: 'center' })
+  // Expose base64 PDF for automated tests and then trigger save as normal.
+  try {
+    // datauristring is like 'data:application/pdf;base64,JVBERi0x...'
+    // Save base64 portion to window for test harness to pick up.
+    // eslint-disable-next-line no-undef
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line no-undef
+      window.__LAST_PDF_B64 = doc.output('datauristring').split(',')[1]
+    }
+  } catch (err) {
+    // ignore test hook failures
+  }
 
   doc.save(`Invoice-${order.id}.pdf`)
 }

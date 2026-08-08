@@ -71,7 +71,17 @@ export const useCategoriesStore = create((set) => ({
       nextOrder = payload.order || Math.max(0, ...state.categories.map((item) => item.order || 0)) + 1
       return { categories: [{ ...payload, order: nextOrder }, ...state.categories] }
     })
+    // If Firebase isn't ready yet, wait a short while for initialization
+    if (!isFirebaseConfigured) {
+      let attempts = 0
+      while (!isFirebaseConfigured && attempts < 10) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 300))
+        attempts += 1
+      }
+    }
     if (!isFirebaseConfigured) return
+
     await setDoc(doc(db, COLLECTION, payload.id), {
       ...payload,
       order: nextOrder,
@@ -82,6 +92,14 @@ export const useCategoriesStore = create((set) => ({
     set((state) => ({
       categories: state.categories.map((item) => (item.id === id ? { ...item, ...updates } : item)),
     }))
+    if (!isFirebaseConfigured) {
+      let attempts = 0
+      while (!isFirebaseConfigured && attempts < 10) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 300))
+        attempts += 1
+      }
+    }
     if (!isFirebaseConfigured) return
     await updateDoc(doc(db, COLLECTION, id), { ...updates, updatedAt: serverTimestamp() })
   },
