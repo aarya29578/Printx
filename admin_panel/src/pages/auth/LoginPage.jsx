@@ -151,8 +151,9 @@ export default function LoginPage() {
           </div>
         </motion.div>
       </div>
+
+      <ForgotPasswordModal isOpen={forgotOpen} onClose={() => setForgotOpen(false)} onSend={handleForgotSend} />
     </div>
-    <ForgotPasswordModal isOpen={forgotOpen} onClose={() => setForgotOpen(false)} onSend={handleForgotSend} />
   )
 }
 
