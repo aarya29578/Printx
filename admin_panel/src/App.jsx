@@ -25,6 +25,7 @@ import DeliverySettingsPage from './pages/delivery/DeliverySettingsPage'
 import PricingRulesPage from './pages/pricing/PricingRulesPage'
 import AdminUsersPage from './pages/adminUsers/AdminUsersPage'
 import GeneralSettingsPage from './pages/settings/GeneralSettingsPage'
+import ProfilePage from './pages/profile/ProfilePage'
 import RidersPage from './pages/riders/RidersPage'
 import { useProductsStore } from './store/productsStore'
 import { useOrdersStore } from './store/ordersStore'
@@ -102,6 +103,7 @@ export default function App() {
             <Route path="pricing" element={<PricingRulesPage />} />
             <Route path="admin-users" element={<AdminUsersPage />} />
             <Route path="settings" element={<GeneralSettingsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

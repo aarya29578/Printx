@@ -153,7 +153,7 @@ export default function Topbar({ onMenuClick }) {
                   <p className="font-medium">{admin?.name}</p>
                   <p className="text-xs text-gray-500">{admin?.email}</p>
                 </div>
-                <button type="button" className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700">Profile Settings</button>
+                <button type="button" className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => { navigate('/profile'); setShowProfile(false) }}>Profile Settings</button>
                 <button
                   type="button"
                   className="block w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"

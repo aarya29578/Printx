@@ -7,13 +7,16 @@ import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/authStore'
 import Input from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
+import Modal from '../../components/ui/Modal'
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
+  const sendPasswordReset = useAuthStore((state) => state.sendPasswordReset)
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
   const [rememberMe, setRememberMe] = useState(Boolean(localStorage.getItem('printx-remember-email')))
+  const [forgotOpen, setForgotOpen] = useState(false)
 
   const rememberedEmail = localStorage.getItem('printx-remember-email') || 'admin@printx.in'
 
@@ -40,18 +43,32 @@ export default function LoginPage() {
     } else {
       localStorage.removeItem('printx-remember-email')
     }
-    const ok = login(values.email, values.password)
-    if (!ok) {
-      setError('Invalid credentials')
-      return
+    try {
+      await login(values.email, values.password)
+      toast.success('Welcome back!')
+      navigate('/dashboard')
+    } catch (err) {
+      const msg = err?.message || 'Authentication failed'
+      // Map common Firebase errors
+      if (msg.includes('wrong-password')) setError('Incorrect password')
+      else if (msg.includes('user-not-found')) setError('No account found for this email')
+      else setError(msg)
     }
-    toast.success('Welcome back, Rahul! 👋')
-    navigate('/dashboard')
   }
 
   const copyText = async (text) => {
     await navigator.clipboard.writeText(text)
     toast.success('Copied!')
+  }
+
+  const handleForgotSend = async (values) => {
+    try {
+      await sendPasswordReset(values.email)
+      toast.success('Password reset email sent')
+      setForgotOpen(false)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to send reset email')
+    }
   }
 
   return (
@@ -101,7 +118,7 @@ export default function LoginPage() {
                 <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
                 Remember me
               </label>
-              <button type="button" className="text-primary-600">Forgot password?</button>
+              <button type="button" className="text-primary-600" onClick={() => setForgotOpen(true)}>Forgot password?</button>
             </div>
 
             <AnimatePresence>
@@ -135,5 +152,24 @@ export default function LoginPage() {
         </motion.div>
       </div>
     </div>
+    <ForgotPasswordModal isOpen={forgotOpen} onClose={() => setForgotOpen(false)} onSend={handleForgotSend} />
   )
 }
+
+// Forgot password modal is rendered outside main return to keep file small
+function ForgotPasswordModal({ isOpen, onClose, onSend }) {
+  const { register, handleSubmit, formState: { isSubmitting } } = useForm()
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Reset Password">
+      <form onSubmit={handleSubmit(onSend)} className="space-y-3">
+        <label className="block text-sm font-medium">Email</label>
+        <Input {...register('email', { required: true })} />
+        <div className="flex justify-end">
+          <Button type="submit" loading={isSubmitting}>Send reset email</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// LoginPageWithForgot removed; default LoginPage includes forgot modal
